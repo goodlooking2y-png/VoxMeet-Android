@@ -1,8 +1,13 @@
 package com.rakib.voxmeet
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
+import java.util.UUID
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -16,6 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +55,13 @@ fun VoxMeetApp() {
     var selectedTab by remember { mutableIntStateOf(0) }
     var activeRoom by remember { mutableStateOf<VoiceRoom?>(null) }
     var micOn by remember { mutableStateOf(false) }
+    var audioConnected by remember { mutableStateOf(false) }
+    var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val audioManager = remember { LiveKitAudioManager(context) }
+    val scope = rememberCoroutineScope()
+
     val rooms = remember {
         mutableStateListOf(
             VoiceRoom("আজকের আড্ডা", "বন্ধুত্ব • গল্প • পরিচয়", 128, "Rakib", "বাংলা"),
@@ -56,10 +70,88 @@ fun VoxMeetApp() {
             VoiceRoom("রাত জাগা বন্ধুরা", "চলো একটু কথা বলি", 57, "Arif", "Chill")
         )
     }
+
+    val connectToRoom: (VoiceRoom) -> Unit = { selectedRoom ->
+        scope.launch {
+            try {
+                audioStatus = "LiveKit-এ সংযোগ হচ্ছে..."
+                val stableRoomName = "voxmeet-room-${selectedRoom.title.hashCode().toUInt().toString(16)}"
+                val participantName = "Guest-${UUID.randomUUID().toString().take(8)}"
+                audioManager.joinRoom(stableRoomName, participantName)
+                audioManager.setMicrophoneEnabled(false)
+                audioConnected = true
+                audioStatus = "অডিও সংযুক্ত • মাইক বন্ধ"
+            } catch (error: Exception) {
+                audioConnected = false
+                audioStatus = "অডিও সংযোগ হয়নি: ${error.message ?: "আবার চেষ্টা করুন"}"
+            }
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val selectedRoom = activeRoom
+        if (granted && selectedRoom != null) {
+            connectToRoom(selectedRoom)
+        } else if (!granted) {
+            audioStatus = "অডিও চালাতে মাইক্রোফোন অনুমতি প্রয়োজন"
+        }
+    }
+
+    LaunchedEffect(activeRoom) {
+        if (activeRoom != null) {
+            micOn = false
+            audioConnected = false
+            audioStatus = "মাইক্রোফোন অনুমতি যাচাই হচ্ছে..."
+            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                connectToRoom(activeRoom!!)
+            } else {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    fun leaveActiveRoom() {
+        scope.launch {
+            try {
+                audioManager.leaveRoom()
+            } catch (_: Exception) {
+                // Keep the UI responsive even if the network has already disconnected.
+            }
+            audioConnected = false
+            micOn = false
+            audioStatus = "রুম থেকে বের হয়েছেন"
+            activeRoom = null
+        }
+    }
+
     MaterialTheme(colorScheme = darkColorScheme(primary = Violet, secondary = Pink, background = Ink, surface = Panel)) {
         Surface(Modifier.fillMaxSize(), color = Ink) {
             if (activeRoom != null) {
-                RoomScreen(activeRoom!!, micOn, { micOn = !micOn }, { activeRoom = null; micOn = false })
+                RoomScreen(
+                    activeRoom!!,
+                    micOn,
+                    audioConnected,
+                    audioStatus,
+                    onMic = {
+                        if (!audioConnected) {
+                            audioStatus = "আগে অডিও সংযোগ সম্পন্ন হতে দিন"
+                        } else {
+                            scope.launch {
+                                try {
+                                    val nextState = !micOn
+                                    audioManager.setMicrophoneEnabled(nextState)
+                                    micOn = nextState
+                                    audioStatus = if (nextState) "তোমার মাইক চালু আছে" else "তোমার মাইক বন্ধ"
+                                } catch (error: Exception) {
+                                    audioStatus = "মাইক পরিবর্তন হয়নি: ${error.message ?: "আবার চেষ্টা করুন"}"
+                                }
+                            }
+                        }
+                    },
+                    onLeave = { leaveActiveRoom() }
+                )
             } else {
                 Scaffold(
                     containerColor = Ink,
@@ -258,7 +350,7 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 }
 
 @Composable
-fun RoomScreen(room: VoiceRoom, micOn: Boolean, onMic: () -> Unit, onLeave: () -> Unit) {
+fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, onMic: () -> Unit, onLeave: () -> Unit) {
     val seats = remember {
         mutableStateListOf<String?>("Rakib", "Sami", "Arif", null, null, null, null, null, null, null, null, null)
     }
@@ -282,7 +374,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, onMic: () -> Unit, onLeave: () -
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("VOICE SEATS", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-            Text("3 / 12 occupied", color = Muted, fontSize = 11.sp)
+            Text("12টি অডিও সিট", color = Muted, fontSize = 11.sp)
         }
         Spacer(Modifier.height(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -323,7 +415,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, onMic: () -> Unit, onLeave: () -
                 }
             }
         }
-        Text(notice, color = Aqua, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        Text(notice, color = Aqua, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))\n        Text(audioStatus, color = if (audioConnected) Aqua else Color(0xFFFFC857), fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .18f)).padding(10.dp)) {
             Text("LIVE CHAT", color = Aqua, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Text(lastMessage, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
