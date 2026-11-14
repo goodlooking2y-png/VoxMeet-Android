@@ -8,8 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -25,30 +23,57 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
-      - name: Configure Java compilation for JVM 17
+      - name: Set Java and Kotlin targets in the Android app module
         working-directory: VoxMeet
         run: |
-          cat > jvm17.init.gradle <<'EOF'
-          import org.gradle.api.tasks.compile.JavaCompile
-          import org.gradle.api.JavaVersion
+          python3 - <<'PY'
+          from pathlib import Path
 
-          gradle.beforeProject { project ->
-            project.tasks.withType(JavaCompile).configureEach {
-              sourceCompatibility = JavaVersion.VERSION_17.toString()
-              targetCompatibility = JavaVersion.VERSION_17.toString()
-            }
+          candidates = [Path("app/build.gradle"), Path("app/build.gradle.kts")]
+          build_file = next((p for p in candidates if p.is_file()), None)
+          if build_file is None:
+              raise SystemExit("Could not find app/build.gradle or app/build.gradle.kts")
+          print(f"Patching {build_file}")
+          original = build_file.read_text()
+          if build_file.suffix == ".kts":
+              patch = """
+          
+          // Enforce matching bytecode targets for Java and Kotlin.
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
           }
-          EOF
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions.jvmTarget = "17"
+          }
+          """
+          else:
+              patch = """
+          
+          // Enforce matching bytecode targets for Java and Kotlin.
+          android {
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+              kotlinOptions.jvmTarget = '17'
+          }
+          """
+          build_file.write_text(original.rstrip() + "\n" + patch)
+          print("Updated app module build configuration:")
+          print(build_file.read_text())
+          PY
 
-      - name: Show Gradle and Java versions
-        working-directory: VoxMeet
-        run: |
-          java -version
-          gradle --version
+      - name: Show Java version
+        run: java -version
 
       - name: Build APK
         working-directory: VoxMeet
-        run: gradle --no-daemon --init-script jvm17.init.gradle :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug
 
       - uses: actions/upload-artifact@v4
         if: success()
