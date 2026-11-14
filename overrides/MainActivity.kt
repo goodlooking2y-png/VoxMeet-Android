@@ -102,74 +102,107 @@ fun VoxMeetApp() {
 
 @Composable
 fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit, onGoLive: () -> Unit) {
+    var selectedFeed by remember { mutableStateOf("Popular") }
+    var selectedCategory by remember { mutableStateOf("For You") }
+    val categories = listOf("For You", "বাংলা", "Music", "Chat", "PK")
+    val visibleRooms = when (selectedCategory) {
+        "বাংলা" -> rooms.filter { it.tag == "বাংলা" || it.topic.contains("বাংলা") || it.topic.contains("প্রবাস") }
+        "Music" -> rooms.filter { it.tag == "Music" || it.topic.contains("গান") || it.title.contains("গান") }
+        "Chat" -> rooms.filter { it.topic.contains("গল্প") || it.topic.contains("কথা") || it.tag == "Chill" }
+        "PK" -> rooms.filter { it.tag == "PK" }
+        else -> rooms
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 110.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("VOXMEET", color = Pink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
-                    Text("তোমার Live দুনিয়া", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("VOXMEET", color = Pink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+                    Text("Live your moment", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 WalletPill()
-                Spacer(Modifier.width(9.dp))
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Panel2), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.NotificationsNone, null, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = { }) {
+                    Icon(Icons.Default.Search, "Search", tint = Color.White)
+                }
+                IconButton(onClick = { }) {
+                    Icon(Icons.Default.NotificationsNone, "Notifications", tint = Color.White)
                 }
             }
         }
         item {
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF773B91), Color(0xFF36245F), Color(0xFF222044))))
-                    .clickable { onGoLive() }.padding(18.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF8D3F9F), Color(0xFF57318C), Color(0xFF29204D))))
+                    .clickable { onGoLive() }.padding(17.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("তোমার মুহূর্ত শেয়ার করো", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("এখনই Live শুরু করো এবং বন্ধুদের সঙ্গে যুক্ত হও", color = Color(0xFFE5D9F4), fontSize = 12.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("GO LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 14.dp, vertical = 8.dp))
-                    }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Your stage is waiting", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Go live, meet new people and share your vibe", color = Color(0xFFE9DDF5), fontSize = 11.sp)
+                    Text("＋  START LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 13.dp, vertical = 8.dp))
                 }
-                Icon(Icons.Default.VideoCall, null, tint = Color.White, modifier = Modifier.size(58.dp))
+                Box(Modifier.size(66.dp).clip(CircleShape).background(Color.White.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Videocam, null, tint = Color.White, modifier = Modifier.size(39.dp))
+                }
             }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Live Now", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text("সব দেখুন  ›", color = Pink, fontSize = 12.sp)
+                Text("Live", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("See all  ›", color = Pink, fontSize = 12.sp)
             }
-        }
-        item {
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 StoryAvatar("R", "Rakib", true, Pink)
                 StoryAvatar("S", "Sami", true, Violet)
                 StoryAvatar("N", "Nayeem", true, Aqua)
                 StoryAvatar("A", "Arif", false, Color(0xFFFFB45C))
                 StoryAvatar("M", "Mitu", true, Pink)
-                StoryAvatar("+", "তুমি", false, Violet)
+                StoryAvatar("+", "Go live", false, Violet)
             }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Discover Rooms", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Discover", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Icon(Icons.Default.Tune, null, tint = Muted)
             }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                listOf("For You", "বাংলা", "Music", "Chat", "PK").forEachIndexed { i, label ->
-                    Text(label, color = if (i == 0) Color.White else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(if (i == 0) Violet else Panel).padding(horizontal = 16.dp, vertical = 9.dp))
+            Spacer(Modifier.height(9.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                categories.forEach { category ->
+                    val active = selectedCategory == category
+                    Text(category, color = if (active) Color.White else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clip(RoundedCornerShape(22.dp))
+                            .background(if (active) Violet else Panel).clickable { selectedCategory = category }
+                            .padding(horizontal = 15.dp, vertical = 9.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                listOf("Popular", "Following", "Nearby").forEach { feed ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { selectedFeed = feed }) {
+                        Text(feed, color = if (selectedFeed == feed) Color.White else Muted, fontSize = 13.sp,
+                            fontWeight = if (selectedFeed == feed) FontWeight.Bold else FontWeight.Normal)
+                        Spacer(Modifier.height(5.dp))
+                        Box(Modifier.width(if (selectedFeed == feed) 24.dp else 8.dp).height(3.dp)
+                            .clip(RoundedCornerShape(3.dp)).background(if (selectedFeed == feed) Pink else Color.Transparent))
+                    }
                 }
             }
         }
-        items(rooms) { room -> LiveRoomCard(room) { onJoin(room) } }
-        item { Text("VoxMeet • Connect, share and shine", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) }
+        if (visibleRooms.isEmpty()) {
+            item {
+                Text("এই ক্যাটাগরিতে এখনো কোনো Live Room নেই।", color = Muted, fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp))
+            }
+        } else {
+            items(visibleRooms) { room -> LiveRoomCard(room) { onJoin(room) } }
+        }
+        item { Text("VoxMeet • Connect, share and shine", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) }
     }
 }
 
