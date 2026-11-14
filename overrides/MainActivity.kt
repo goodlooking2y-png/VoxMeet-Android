@@ -414,7 +414,8 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                 }
             }
         }
-        Text(notice, color = Aqua, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))\n        Text(audioStatus, color = if (audioConnected) Aqua else Color(0xFFFFC857), fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+        Text(notice, color = Aqua, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        Text(audioStatus, color = if (audioConnected) Aqua else Color(0xFFFFC857), fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .18f)).padding(10.dp)) {
             Text("LIVE CHAT", color = Aqua, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Text(lastMessage, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
