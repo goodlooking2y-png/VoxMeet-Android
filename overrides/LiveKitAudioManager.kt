@@ -4,14 +4,13 @@ import android.content.Context
 import io.livekit.android.LiveKit
 import io.livekit.android.room.Room
 import io.livekit.android.events.RoomEvent
+import io.livekit.android.events.collect
 import io.livekit.android.room.track.DataPublishReliability
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
 import io.livekit.android.token.TokenRequestOptions
 import io.livekit.android.token.TokenSource
@@ -60,15 +59,17 @@ class LiveKitAudioManager(context: Context) {
             ),
         ).getOrThrow()
 
-        room.events
-            .onEach { event ->
+        // LiveKit 2.30 exposes Room.events as EventListenable, not Kotlin Flow.
+        // Use LiveKit's own collect extension to consume the event stream.
+        scope.launch {
+            room.events.collect { event ->
                 when (event) {
                     is RoomEvent.ParticipantConnected,
                     is RoomEvent.ParticipantDisconnected,
                     is RoomEvent.Connected -> refreshParticipants()
                     is RoomEvent.DataReceived -> {
                         val payload = event.data.toString(Charsets.UTF_8)
-                        val parts = payload.split("\\t", limit = 2)
+                        val parts = payload.split("\t", limit = 2)
                         if (parts.size == 2) {
                             val line = "${parts[0]}: ${parts[1]}"
                             mutableMessages.value = (mutableMessages.value + line).takeLast(100)
@@ -77,7 +78,7 @@ class LiveKitAudioManager(context: Context) {
                     else -> Unit
                 }
             }
-            .launchIn(scope)
+        }
         room.connect(credentials.serverUrl, credentials.participantToken)
         connected = true
         refreshParticipants()
@@ -93,7 +94,7 @@ class LiveKitAudioManager(context: Context) {
         val clean = message.trim()
         require(clean.isNotEmpty()) { "Message cannot be empty" }
         val sender = room.localParticipant.name ?: "You"
-        val payload = "$sender\\t$clean".toByteArray(Charsets.UTF_8)
+        val payload = "$sender\t$clean".toByteArray(Charsets.UTF_8)
         room.localParticipant.publishData(
             payload,
             reliability = DataPublishReliability.RELIABLE,
