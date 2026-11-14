@@ -23,6 +23,11 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Apply redesigned VoxMeet home screen
+        run: |
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+
       - name: Upload extracted source for review
         uses: actions/upload-artifact@v4
         with:
