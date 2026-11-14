@@ -23,10 +23,25 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
-      - name: Apply redesigned VoxMeet home screen
+      - name: Apply VoxMeet LiveKit audio foundation
         run: |
           mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
           cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+          cp overrides/LiveKitAudioManager.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LiveKitAudioManager.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle = Path("VoxMeet/app/build.gradle.kts")
+          s = gradle.read_text()
+          dep = '    implementation("io.livekit:livekit-android:2.30.0")'
+          if dep not in s:
+              s = s.replace("dependencies {", "dependencies {\\n" + dep, 1)
+          gradle.write_text(s)
+          settings = Path("VoxMeet/settings.gradle.kts")
+          s = settings.read_text()
+          if "https://jitpack.io" not in s:
+              s = s.replace("repositories { google(); mavenCentral() }", "repositories { google(); mavenCentral(); maven { url = uri(\\"https://jitpack.io\\") } }")
+          settings.write_text(s)
+          PY
 
       - name: Upload extracted source for review
         uses: actions/upload-artifact@v4
