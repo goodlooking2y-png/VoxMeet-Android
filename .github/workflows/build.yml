@@ -36,6 +36,27 @@ jobs:
           if dep not in s:
               s = s.replace("dependencies {", "dependencies {" + chr(10) + dep, 1)
           gradle.write_text(s)
+
+          # LiveKit's audioswitch dependency is published on JitPack.
+          settings_candidates = [Path("VoxMeet/settings.gradle.kts"), Path("VoxMeet/settings.gradle")]
+          settings = next((p for p in settings_candidates if p.is_file()), None)
+          if settings is None:
+              raise SystemExit("Could not find VoxMeet/settings.gradle(.kts)")
+          cfg = settings.read_text()
+          if "jitpack.io" not in cfg:
+              marker = "dependencyResolutionManagement"
+              start = cfg.find(marker)
+              if start >= 0:
+                  repo_start = cfg.find("repositories {", start)
+                  if repo_start < 0:
+                      raise SystemExit("Could not find dependencyResolutionManagement repositories block")
+                  insert_at = repo_start + len("repositories {")
+                  addition = chr(10) + '        maven("https://jitpack.io")' if settings.suffix == ".kts" else chr(10) + "        maven { url 'https://jitpack.io' }"
+                  cfg = cfg[:insert_at] + addition + cfg[insert_at:]
+              else:
+                  raise SystemExit("Could not find dependencyResolutionManagement block for JitPack")
+              settings.write_text(cfg)
+          print("Configured JitPack in", settings)
           PY
 
       - name: Upload extracted source for review
