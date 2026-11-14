@@ -51,7 +51,7 @@ jobs:
                   if repo_start < 0:
                       raise SystemExit("Could not find dependencyResolutionManagement repositories block")
                   insert_at = repo_start + len("repositories {")
-                  addition = chr(10) + '        maven("https://jitpack.io")' if settings.suffix == ".kts" else chr(10) + "        maven { url 'https://jitpack.io' }"
+                  addition = chr(10) + '        maven("https://jitpack.io");' if settings.suffix == ".kts" else chr(10) + "        maven { url 'https://jitpack.io' }"
                   cfg = cfg[:insert_at] + addition + cfg[insert_at:]
               else:
                   raise SystemExit("Could not find dependencyResolutionManagement block for JitPack")
