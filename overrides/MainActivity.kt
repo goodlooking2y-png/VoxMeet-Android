@@ -59,6 +59,8 @@ fun VoxMeetApp() {
     var showCreate by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val audioManager = remember { LiveKitAudioManager(context) }
+    val roomParticipants by audioManager.participants.collectAsState()
+    val roomMessages by audioManager.messages.collectAsState()
     val scope = rememberCoroutineScope()
 
     val rooms = remember {
@@ -133,6 +135,17 @@ fun VoxMeetApp() {
                     micOn,
                     audioConnected,
                     audioStatus,
+                    roomParticipants,
+                    roomMessages,
+                    onSendChat = { message ->
+                        scope.launch {
+                            try {
+                                audioManager.sendChat(message)
+                            } catch (error: Exception) {
+                                audioStatus = "মেসেজ পাঠানো যায়নি: ${error.message ?: "আবার চেষ্টা করুন"}"
+                            }
+                        }
+                    },
                     onMic = {
                         if (!audioConnected) {
                             audioStatus = "আগে অডিও সংযোগ সম্পন্ন হতে দিন"
@@ -349,15 +362,11 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 }
 
 @Composable
-fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, onMic: () -> Unit, onLeave: () -> Unit) {
-    val seats = remember {
-        mutableStateListOf<String?>("Rakib", "Sami", "Arif", null, null, null, null, null, null, null, null, null)
-    }
-    var notice by remember { mutableStateOf("একটি খালি সিটে চাপ দিয়ে যোগ দেওয়ার অনুরোধ পাঠাও") }
+fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, participants: List<String>, messages: List<String>, onSendChat: (String) -> Unit, onMic: () -> Unit, onLeave: () -> Unit) {
+    var notice by remember { mutableStateOf("LiveKit-এর সদস্য তালিকা") }
     var showGift by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
-    var lastMessage by remember { mutableStateOf("রুমে সবাইকে স্বাগতম!") }
 
     Column(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF32204E), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
@@ -365,7 +374,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("←  Back", color = Color.White, modifier = Modifier.clickable { onLeave() })
             Text("● LIVE ROOM", color = Pink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("👥 ${room.people}", color = Color.White, fontSize = 12.sp)
+            Text("👥 ${participants.size}", color = Color.White, fontSize = 12.sp)
         }
         Spacer(Modifier.height(18.dp))
         Text(room.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
@@ -373,7 +382,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("VOICE SEATS", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-            Text("12টি অডিও সিট", color = Muted, fontSize = 11.sp)
+            Text("${participants.size}/12 সদস্য", color = Muted, fontSize = 11.sp)
         }
         Spacer(Modifier.height(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -381,17 +390,12 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     repeat(3) { col ->
                         val index = row * 3 + col
-                        val occupant = seats[index]
+                        val occupant = participants.getOrNull(index)
                         Column(
                             Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
                                 .background(if (occupant == null) Panel.copy(alpha = .75f) else Panel2)
                                 .clickable {
-                                    if (occupant == null) {
-                                        seats[index] = "You"
-                                        notice = "সিট ${index + 1}-এ যোগ দিয়েছেন (ডেমো)"
-                                    } else {
-                                        notice = if (index == 0) "Host: ${occupant}" else "${occupant} মাইকে আছেন"
-                                    }
+                                    notice = if (occupant == null) "এই সিটটি খালি" else "সদস্য: ${occupant}"
                                 }.padding(vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -418,7 +422,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         Text(audioStatus, color = if (audioConnected) Aqua else Color(0xFFFFC857), fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .18f)).padding(10.dp)) {
             Text("LIVE CHAT", color = Aqua, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Text(lastMessage, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            Text(messages.takeLast(2).joinToString("\\n").ifBlank { "এখনো কোনো মেসেজ নেই" }, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -435,7 +439,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
         }
         Text(if (micOn) "মাইক UI-তে অন" else "মাইক UI-তে অফ", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
-        Text("ডেমো: এখনো বাস্তব অডিও/চ্যাট সার্ভারের সঙ্গে যুক্ত নয়", color = Color(0xFFFFC857), fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+        Text("সদস্য ও চ্যাট LiveKit-এর মাধ্যমে সিঙ্ক হয়", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
     }
 
     if (showGift) {
@@ -453,12 +457,16 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             containerColor = Panel,
             title = { Text("Live Chat", color = Color.White) },
             text = {
-                OutlinedTextField(value = chatText, onValueChange = { chatText = it }, label = { Text("মেসেজ লিখুন") }, singleLine = true)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(messages.takeLast(8).joinToString("\\n").ifBlank { "এখনো কোনো মেসেজ নেই" }, color = Muted, fontSize = 12.sp)
+                    OutlinedTextField(value = chatText, onValueChange = { chatText = it }, label = { Text("মেসেজ লিখুন") }, singleLine = true)
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (chatText.isNotBlank()) lastMessage = "You: ${chatText.trim()}"
-                    chatText = ""; showChat = false
+                    val outgoing = chatText.trim()
+                    if (outgoing.isNotEmpty()) onSendChat(outgoing)
+                    chatText = ""
                 }) { Text("পাঠান") }
             },
             dismissButton = { TextButton(onClick = { showChat = false }) { Text("বন্ধ") } }
