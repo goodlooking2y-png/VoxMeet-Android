@@ -227,7 +227,6 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
                     Text("VOXMEET", color = Pink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
                     Text("Live your moment", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
-                WalletPill()
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { }) {
                     Icon(Icons.Default.Search, "Search", tint = Color.White)
@@ -431,9 +430,6 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             }
             FilledTonalIconButton(onClick = { showChat = true }, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.Chat, "Chat")
-            }
-            FilledTonalIconButton(onClick = { showGift = true }, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.CardGiftcard, "Gift")
             }
             Spacer(Modifier.weight(1f))
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
