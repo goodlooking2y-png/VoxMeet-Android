@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -23,27 +25,34 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
-      - name: Force Java compile tasks to JVM 17
+      - name: Configure Java compilation for JVM 17
         working-directory: VoxMeet
         run: |
           cat > jvm17.init.gradle <<'EOF'
           import org.gradle.api.tasks.compile.JavaCompile
+          import org.gradle.api.JavaVersion
 
-          gradle.taskGraph.whenReady {
-            allprojects.each { project ->
-              project.tasks.withType(JavaCompile).each { task ->
-                task.sourceCompatibility = '17'
-                task.targetCompatibility = '17'
-              }
+          gradle.beforeProject { project ->
+            project.tasks.withType(JavaCompile).configureEach {
+              sourceCompatibility = JavaVersion.VERSION_17.toString()
+              targetCompatibility = JavaVersion.VERSION_17.toString()
             }
           }
           EOF
 
+      - name: Show Gradle and Java versions
+        working-directory: VoxMeet
+        run: |
+          java -version
+          gradle --version
+
       - name: Build APK
         working-directory: VoxMeet
-        run: gradle --init-script jvm17.init.gradle :app:assembleDebug
+        run: gradle --no-daemon --init-script jvm17.init.gradle :app:assembleDebug
 
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: VoxMeet-APK
           path: VoxMeet/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
