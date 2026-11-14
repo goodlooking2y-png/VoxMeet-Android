@@ -23,6 +23,21 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Add Firebase Android configuration
+        run: |
+          test -s overrides/google-services.json
+          mkdir -p VoxMeet/app
+          cp overrides/google-services.json VoxMeet/app/google-services.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("VoxMeet/app/google-services.json").read_text())
+          package = config["client"][0]["client_info"]["android_client_info"]["package_name"]
+          if package != "com.rakib.voxmeet":
+              raise SystemExit(f"Firebase package mismatch: {package}")
+          print("Firebase config validated for", package)
+          PY
+
       - name: Apply VoxMeet LiveKit audio foundation
         run: |
           mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
