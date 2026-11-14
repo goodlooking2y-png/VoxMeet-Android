@@ -10,7 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
 import io.livekit.android.token.TokenRequestOptions
 import io.livekit.android.token.TokenSource
@@ -59,8 +60,8 @@ class LiveKitAudioManager(context: Context) {
             ),
         ).getOrThrow()
 
-        scope.launch {
-            room.events.collect { event ->
+        room.events
+            .onEach { event ->
                 when (event) {
                     is RoomEvent.ParticipantConnected,
                     is RoomEvent.ParticipantDisconnected,
@@ -76,7 +77,7 @@ class LiveKitAudioManager(context: Context) {
                     else -> Unit
                 }
             }
-        }
+            .launchIn(scope)
         room.connect(credentials.serverUrl, credentials.participantToken)
         connected = true
         refreshParticipants()
