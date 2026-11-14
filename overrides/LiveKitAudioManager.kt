@@ -19,8 +19,10 @@ class LiveKitAudioManager(context: Context) {
         .fromDevelopmentTokenServer(DEV_TOKEN_SERVER_ID)
         .cached()
 
+    private var connected = false
+
     val isConnected: Boolean
-        get() = room.state == Room.State.CONNECTED
+        get() = connected
 
     suspend fun joinRoom(roomName: String, participantName: String) {
         require(roomName.isNotBlank()) { "Room name cannot be empty" }
@@ -34,6 +36,7 @@ class LiveKitAudioManager(context: Context) {
         ).getOrThrow()
 
         room.connect(credentials.serverUrl, credentials.participantToken)
+        connected = true
     }
 
     suspend fun setMicrophoneEnabled(enabled: Boolean) {
@@ -44,6 +47,7 @@ class LiveKitAudioManager(context: Context) {
     suspend fun leaveRoom() {
         if (isConnected) {
             room.disconnect()
+            connected = false
         }
     }
 
