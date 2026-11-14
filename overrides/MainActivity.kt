@@ -259,35 +259,118 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 
 @Composable
 fun RoomScreen(room: VoiceRoom, micOn: Boolean, onMic: () -> Unit, onLeave: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF32204E), Ink))).padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val seats = remember {
+        mutableStateListOf<String?>("Rakib", "Sami", "Arif", null, null, null, null, null, null, null, null, null)
+    }
+    var notice by remember { mutableStateOf("একটি খালি সিটে চাপ দিয়ে যোগ দেওয়ার অনুরোধ পাঠাও") }
+    var showGift by remember { mutableStateOf(false) }
+    var showChat by remember { mutableStateOf(false) }
+    var chatText by remember { mutableStateOf("") }
+    var lastMessage by remember { mutableStateOf("রুমে সবাইকে স্বাগতম!") }
+
+    Column(
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF32204E), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("←  Back", color = Color.White, modifier = Modifier.clickable { onLeave() })
             Text("● LIVE ROOM", color = Pink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("👥 ${room.people}", color = Color.White, fontSize = 12.sp)
         }
-        Spacer(Modifier.height(48.dp))
-        Text(room.title, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
-        Text(room.topic, color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(42.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-            Avatar("R", "Rakib", true); Avatar("S", "Sami", false); Avatar("A", "Arif", false)
-        }
-        Spacer(Modifier.height(28.dp))
-        Text("${room.people} জন রুমে আছেন", color = Aqua, fontSize = 13.sp)
-        Spacer(Modifier.weight(1f))
-        Text(if (micOn) "মাইক UI-তে চালু" else "তুমি শ্রোতা হিসেবে আছো", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onMic, modifier = Modifier.size(66.dp).background(if (micOn) Aqua else Violet, CircleShape)) {
-                Icon(if (micOn) Icons.Default.Mic else Icons.Default.MicOff, null, tint = Ink, modifier = Modifier.size(28.dp))
-            }
-            IconButton(onClick = {}, modifier = Modifier.size(54.dp).background(Panel2, CircleShape)) { Icon(Icons.Default.CardGiftcard, null, tint = Color.White) }
-            IconButton(onClick = {}, modifier = Modifier.size(54.dp).background(Panel2, CircleShape)) { Icon(Icons.Default.Chat, null, tint = Color.White) }
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("মাইক / Gift / Chat — ডেমো UI", color = Muted, fontSize = 11.sp)
-        Spacer(Modifier.height(28.dp))
-        OutlinedButton(onClick = onLeave, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = Pink)) { Text("Leave Room") }
         Spacer(Modifier.height(18.dp))
+        Text(room.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Host: ${room.host}  •  ${room.topic}", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("VOICE SEATS", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+            Text("3 / 12 occupied", color = Muted, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(4) { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { col ->
+                        val index = row * 3 + col
+                        val occupant = seats[index]
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
+                                .background(if (occupant == null) Panel.copy(alpha = .75f) else Panel2)
+                                .clickable {
+                                    if (occupant == null) {
+                                        seats[index] = "You"
+                                        notice = "সিট ${index + 1}-এ যোগ দিয়েছেন (ডেমো)"
+                                    } else {
+                                        notice = if (index == 0) "Host: ${occupant}" else "${occupant} মাইকে আছেন"
+                                    }
+                                }.padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(
+                                Modifier.size(48.dp).clip(CircleShape)
+                                    .background(if (occupant == null) Color(0xFF39304F) else if (index == 0) Violet else Color(0xFF3B345B)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (occupant == null) {
+                                    Icon(Icons.Default.Add, null, tint = Aqua, modifier = Modifier.size(24.dp))
+                                } else {
+                                    Text(occupant.take(1).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text(occupant ?: "খালি সিট", color = if (occupant == null) Muted else Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(if (index == 0) "HOST" else if (occupant == null) "TAP TO JOIN" else "GUEST", color = if (index == 0) Aqua else Muted, fontSize = 8.sp)
+                        }
+                    }
+                }
+            }
+        }
+        Text(notice, color = Aqua, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .18f)).padding(10.dp)) {
+            Text("LIVE CHAT", color = Aqua, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(lastMessage, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilledIconButton(onClick = onMic, modifier = Modifier.size(52.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = if (micOn) Aqua else Violet)) {
+                Icon(if (micOn) Icons.Default.Mic else Icons.Default.MicOff, null, tint = Ink)
+            }
+            FilledTonalIconButton(onClick = { showChat = true }, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.Chat, "Chat")
+            }
+            FilledTonalIconButton(onClick = { showGift = true }, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.CardGiftcard, "Gift")
+            }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
+        }
+        Text(if (micOn) "মাইক UI-তে অন" else "মাইক UI-তে অফ", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+        Text("ডেমো: এখনো বাস্তব অডিও/চ্যাট সার্ভারের সঙ্গে যুক্ত নয়", color = Color(0xFFFFC857), fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+
+    if (showGift) {
+        AlertDialog(
+            onDismissRequest = { showGift = false },
+            containerColor = Panel,
+            title = { Text("Send a Gift", color = Color.White) },
+            text = { Text("🌹 Rose     ❤️ Heart     ⭐ Star\n\nগিফট পাঠানোর ফিচারটি পরবর্তী ধাপে সার্ভারের সঙ্গে যুক্ত হবে।", color = Muted) },
+            confirmButton = { TextButton(onClick = { showGift = false; notice = "Gift demo নির্বাচন করা হয়েছে" }) { Text("ঠিক আছে") } }
+        )
+    }
+    if (showChat) {
+        AlertDialog(
+            onDismissRequest = { showChat = false },
+            containerColor = Panel,
+            title = { Text("Live Chat", color = Color.White) },
+            text = {
+                OutlinedTextField(value = chatText, onValueChange = { chatText = it }, label = { Text("মেসেজ লিখুন") }, singleLine = true)
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (chatText.isNotBlank()) lastMessage = "You: ${chatText.trim()}"
+                    chatText = ""; showChat = false
+                }) { Text("পাঠান") }
+            },
+            dismissButton = { TextButton(onClick = { showChat = false }) { Text("বন্ধ") } }
+        )
     }
 }
 
