@@ -3,7 +3,7 @@ name: Build VoxMeet APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, work/bigo-live-ui ]
 
 jobs:
   build:
@@ -22,6 +22,13 @@ jobs:
 
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
+
+      - name: Upload extracted source for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxMeet-Source-Review
+          path: VoxMeet/
+          if-no-files-found: error
 
       - name: Set Java and Kotlin targets in the Android app module
         working-directory: VoxMeet
