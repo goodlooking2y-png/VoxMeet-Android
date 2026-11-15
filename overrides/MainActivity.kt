@@ -313,14 +313,31 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
 }
 
 @Composable
-fun WalletPill() {
-    Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Panel).padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+fun WalletPill(walletCoins: Int, onWallet: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Panel).clickable(onClick = onWallet).padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Diamond, null, tint = Color(0xFFFFC857), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
-        Text(coins.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(walletCoins.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.Default.AddCircle, null, tint = Pink, modifier = Modifier.size(16.dp))
     }
+}
+
+
+@Composable
+fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = { Text("My Wallet", color = Color.White) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("বর্তমান ব্যালেন্স: $coins ডেমো কয়েন", color = Color.White)
+                Text("বাস্তব কয়েন কেনা এখনো চালু নয়। নিরাপদ সার্ভার, পেমেন্ট যাচাই ও স্টোর নীতিমালা নিশ্চিত হলে পেমেন্ট যুক্ত হবে।", color = Muted, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("ঠিক আছে") } }
+    )
 }
 
 @Composable
@@ -367,6 +384,7 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, participants: List<RoomParticipant>, messages: List<String>, onSendChat: (String) -> Unit, onMic: () -> Unit, onLeave: () -> Unit) {
     var notice by remember { mutableStateOf("LiveKit-এর সদস্য তালিকা") }
     var showGift by remember { mutableStateOf(false) }
+    var showPk by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
 
@@ -436,6 +454,9 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             }
             FilledTonalIconButton(onClick = { showGift = true }, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.CardGiftcard, "Gift")
+            }
+            FilledTonalIconButton(onClick = { showPk = true }, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.Swords, "PK")
             }
             Spacer(Modifier.weight(1f))
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
