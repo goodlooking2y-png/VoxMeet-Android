@@ -57,6 +57,8 @@ fun VoxMeetApp() {
     var audioConnected by remember { mutableStateOf(false) }
     var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
+    var showWallet by remember { mutableStateOf(false) }
+    var walletCoins by remember { mutableIntStateOf(120) }
     val context = LocalContext.current
     val audioManager = remember { LiveKitAudioManager(context) }
     val roomParticipants by audioManager.participants.collectAsState()
@@ -186,13 +188,13 @@ fun VoxMeetApp() {
                     }
                 ) { padding ->
                     when (selectedTab) {
-                        0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true })
+                        0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true }, { showWallet = true }, walletCoins)
                         1 -> DiscoverScreen(rooms, Modifier.padding(padding), { activeRoom = it })
                         2 -> MessagesScreen(Modifier.padding(padding))
                         else -> ProfileScreen(Modifier.padding(padding))
                     }
                 }
-                if (showCreate) CreateRoomDialog(
+                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })\n                if (showCreate) CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
                         val room = VoiceRoom(name, "তোমার নতুন লাইভ রুম", 1, "You", "New")
@@ -205,7 +207,7 @@ fun VoxMeetApp() {
 }
 
 @Composable
-fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit, onGoLive: () -> Unit) {
+fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit, onGoLive: () -> Unit, onWallet: () -> Unit, walletCoins: Int) {
     var selectedFeed by remember { mutableStateOf("Popular") }
     var selectedCategory by remember { mutableStateOf("For You") }
     val categories = listOf("For You", "বাংলা", "Music", "Chat", "PK")
@@ -227,7 +229,7 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
                     Text("VOXMEET", color = Pink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
                     Text("Live your moment", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
-                WalletPill()
+                WalletPill(walletCoins, onWallet)
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { }) {
                     Icon(Icons.Default.Search, "Search", tint = Color.White)
@@ -315,7 +317,7 @@ fun WalletPill() {
     Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Panel).padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Diamond, null, tint = Color(0xFFFFC857), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
-        Text("120", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(coins.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(4.dp))
         Icon(Icons.Default.AddCircle, null, tint = Pink, modifier = Modifier.size(16.dp))
     }
@@ -439,16 +441,39 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
         }
         Text(if (micOn) "মাইক চালু আছে" else "মাইক বন্ধ আছে", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
-        Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • গিফট: ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+        Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • Gift/PK: কমিউনিটি ইভেন্ট ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
     }
 
     if (showGift) {
+        var selectedGift by remember { mutableStateOf("🌹 Rose") }
         AlertDialog(
-            onDismissRequest = { showGift = false },
-            containerColor = Panel,
+            onDismissRequest = { showGift = false }, containerColor = Panel,
             title = { Text("Send a Gift", color = Color.White) },
-            text = { Text("🌹 Rose     ❤️ Heart     ⭐ Star\n\nগিফট পাঠানোর ফিচারটি পরবর্তী ধাপে সার্ভারের সঙ্গে যুক্ত হবে।", color = Muted) },
-            confirmButton = { TextButton(onClick = { showGift = false; notice = "Gift demo নির্বাচন করা হয়েছে" }) { Text("ঠিক আছে") } }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("রুমে পাঠানোর জন্য একটি গিফট বেছে নাও", color = Muted, fontSize = 12.sp)
+                    listOf("🌹 Rose • 10", "❤️ Heart • 20", "⭐ Star • 50").forEach { gift ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedGift == gift.substringBefore(" •")) Panel2 else Panel2.copy(alpha = .45f))
+                            .clickable { selectedGift = gift.substringBefore(" •") }.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(gift, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Text("এটি এখন রুমে দৃশ্যমান ইভেন্ট পাঠাবে; কয়েন কাটা বা আয় জমা হবে না।", color = Color(0xFFFFC857), fontSize = 10.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { onSendChat("🎁 $selectedGift গিফট পাঠালেন"); showGift = false; notice = "Gift event রুমে পাঠানো হয়েছে" }) { Text("Send demo") } },
+            dismissButton = { TextButton(onClick = { showGift = false }) { Text("বাতিল") } }
+        )
+    }
+    if (showPk) {
+        AlertDialog(
+            onDismissRequest = { showPk = false }, containerColor = Panel,
+            title = { Text("PK Challenge", color = Color.White) },
+            text = { Text("অন্য একটি রুমের সঙ্গে ভয়েস PK চ্যালেঞ্জ শুরু করার ঘোষণা পাঠাও। প্রতিপক্ষ নির্বাচন, লাইভ স্কোর ও সময় গণনার জন্য সার্ভার-সাইড PK সেশন প্রয়োজন।", color = Muted) },
+            confirmButton = { TextButton(onClick = { onSendChat("⚔️ PK Challenge শুরু করার আহ্বান!"); showPk = false; notice = "PK challenge invitation পাঠানো হয়েছে" }) { Text("চ্যালেঞ্জ পাঠাও") } },
+            dismissButton = { TextButton(onClick = { showPk = false }) { Text("বন্ধ") } }
         )
     }
     if (showChat) {
