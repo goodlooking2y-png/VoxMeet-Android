@@ -362,7 +362,7 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 }
 
 @Composable
-fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, participants: List<String>, messages: List<String>, onSendChat: (String) -> Unit, onMic: () -> Unit, onLeave: () -> Unit) {
+fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, participants: List<RoomParticipant>, messages: List<String>, onSendChat: (String) -> Unit, onMic: () -> Unit, onLeave: () -> Unit) {
     var notice by remember { mutableStateOf("LiveKit-এর সদস্য তালিকা") }
     var showGift by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
@@ -395,24 +395,24 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                             Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
                                 .background(if (occupant == null) Panel.copy(alpha = .75f) else Panel2)
                                 .clickable {
-                                    notice = if (occupant == null) "এই সিটটি খালি" else "সদস্য: ${occupant}"
+                                    notice = when { occupant == null -> "এই সিটটি খালি"; occupant.isLocal -> "এটি আপনার সিট"; else -> "সদস্য: ${occupant.name}" }
                                 }.padding(vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Box(
                                 Modifier.size(48.dp).clip(CircleShape)
-                                    .background(if (occupant == null) Color(0xFF39304F) else if (index == 0) Violet else Color(0xFF3B345B)),
+                                    .background(if (occupant == null) Color(0xFF39304F) else if (occupant.isLocal) Violet else Color(0xFF3B345B)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (occupant == null) {
                                     Icon(Icons.Default.Add, null, tint = Aqua, modifier = Modifier.size(24.dp))
                                 } else {
-                                    Text(occupant.take(1).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(occupant.name.take(1).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text(occupant ?: "খালি সিট", color = if (occupant == null) Muted else Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Text(if (index == 0) "HOST" else if (occupant == null) "TAP TO JOIN" else "GUEST", color = if (index == 0) Aqua else Muted, fontSize = 8.sp)
+                            Text(occupant?.name ?: "খালি সিট", color = if (occupant == null) Muted else Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(when { occupant == null -> "TAP TO JOIN"; occupant.isLocal -> "YOU"; else -> "GUEST" }, color = if (occupant?.isLocal == true) Aqua else Muted, fontSize = 8.sp)
                         }
                     }
                 }
@@ -438,8 +438,8 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             Spacer(Modifier.weight(1f))
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
         }
-        Text(if (micOn) "মাইক UI-তে অন" else "মাইক UI-তে অফ", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
-        Text("সদস্য ও চ্যাট LiveKit-এর মাধ্যমে সিঙ্ক হয়", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+        Text(if (micOn) "মাইক চালু আছে" else "মাইক বন্ধ আছে", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+        Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • গিফট: ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
     }
 
     if (showGift) {
