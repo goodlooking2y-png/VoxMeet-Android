@@ -194,7 +194,8 @@ fun VoxMeetApp() {
                         else -> ProfileScreen(Modifier.padding(padding))
                     }
                 }
-                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })\n                if (showCreate) CreateRoomDialog(
+                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })
+                if (showCreate CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
                         val room = VoiceRoom(name, "তোমার নতুন লাইভ রুম", 1, "You", "New")
@@ -456,7 +457,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                 Icon(Icons.Default.CardGiftcard, "Gift")
             }
             FilledTonalIconButton(onClick = { showPk = true }, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.Swords, "PK")
+                Icon(Icons.Default.Bolt, "PK")
             }
             Spacer(Modifier.weight(1f))
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
