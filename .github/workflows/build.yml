@@ -134,6 +134,26 @@ jobs:
         working-directory: VoxMeet
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Export APK signing certificate fingerprints
+        working-directory: VoxMeet
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner was not found in Android SDK build-tools" >&2
+            exit 1
+          fi
+          mkdir -p fingerprint
+          "$APKSIGNER" verify --print-certs "$APK" | tee fingerprint/apk-signing-certificate.txt
+          grep -E 'certificate SHA-1 digest:|certificate SHA-256 digest:' fingerprint/apk-signing-certificate.txt
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: VoxMeet-APK-Fingerprints
+          path: VoxMeet/fingerprint/apk-signing-certificate.txt
+          if-no-files-found: error
+
       - uses: actions/upload-artifact@v4
         if: success()
         with:
