@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "669672762691",
+    "project_id": "voxmeet-a4332",
+    "storage_bucket": "voxmeet-a4332.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:669672762691:android:7a4740353a622af4e293f6",
+        "android_client_info": {
+          "package_name": "com.rakib.voxmeet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbMi5D7JlU8Hzv_s8BGzl710D2RJyYJvc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

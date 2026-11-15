@@ -43,7 +43,7 @@ private val Muted = Color(0xFFB9B2C9)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { VoxMeetApp() }
+        setContent { VoxMeetAuthGate { VoxMeetApp() } }
     }
 }
 
