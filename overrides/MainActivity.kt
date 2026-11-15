@@ -195,7 +195,7 @@ fun VoxMeetApp() {
                     }
                 }
                 if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })
-                if (showCreate CreateRoomDialog(
+                if (showCreate) CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
                         val room = VoiceRoom(name, "তোমার নতুন লাইভ রুম", 1, "You", "New")
