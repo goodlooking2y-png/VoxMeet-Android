@@ -187,9 +187,9 @@ fun VoxMeetApp() {
                 ) { padding ->
                     when (selectedTab) {
                         0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true })
-                        1 -> PlaceholderScreen("Discover", "নতুন Live Room খুঁজে দেখো", Modifier.padding(padding))
-                        2 -> PlaceholderScreen("Messages", "তোমার মেসেজ এখানে দেখা যাবে", Modifier.padding(padding))
-                        else -> PlaceholderScreen("My Profile", "প্রোফাইল ও Wallet", Modifier.padding(padding))
+                        1 -> DiscoverScreen(rooms, Modifier.padding(padding), { activeRoom = it })
+                        2 -> MessagesScreen(Modifier.padding(padding))
+                        else -> ProfileScreen(Modifier.padding(padding))
                     }
                 }
                 if (showCreate) CreateRoomDialog(
@@ -508,5 +508,236 @@ fun PlaceholderScreen(title: String, subtitle: String, modifier: Modifier = Modi
         Text(subtitle, color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(10.dp))
         Text("এই অংশটি পরবর্তী ধাপে তৈরি হবে", color = Violet, fontSize = 12.sp)
+    }
+}
+
+
+@Composable
+fun DiscoverScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("সব") }
+    val filters = listOf("সব", "বাংলা", "Music", "Community", "Chill")
+    val filtered = rooms.filter { room ->
+        (query.isBlank() || room.title.contains(query, true) || room.topic.contains(query, true) || room.host.contains(query, true)) &&
+            (category == "সব" || room.tag.equals(category, true) || room.topic.contains(category, true))
+    }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 100.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Text("DISCOVER", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+            Text("নতুন মানুষ, নতুন গল্প", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            Text("তোমার পছন্দের লাইভ কমিউনিটি খুঁজে নাও", color = Muted, fontSize = 12.sp)
+        }
+        item {
+            OutlinedTextField(
+                value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, placeholder = { Text("রুম বা বিষয় খুঁজুন", color = Muted) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Aqua) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
+                    cursorColor = Pink, focusedContainerColor = Panel, unfocusedContainerColor = Panel
+                )
+            )
+        }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                filters.forEach { filter ->
+                    val selected = category == filter
+                    Text(filter, color = if (selected) Color.White else Muted, fontSize = 12.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(22.dp))
+                            .background(if (selected) Violet else Panel).clickable { category = filter }
+                            .padding(horizontal = 15.dp, vertical = 9.dp))
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DiscoverStat("LIVE ROOMS", rooms.size.toString(), "●", Pink, Modifier.weight(1f))
+                DiscoverStat("COMMUNITY", "24/7", "✦", Aqua, Modifier.weight(1f))
+            }
+        }
+        if (filtered.isEmpty()) {
+            item { Text("কোনো রুম পাওয়া যায়নি। অন্য নামে খুঁজে দেখুন।", color = Muted, modifier = Modifier.padding(18.dp)) }
+        } else {
+            items(filtered) { room -> LiveRoomCard(room) { onJoin(room) } }
+        }
+    }
+}
+
+@Composable
+fun DiscoverStat(label: String, value: String, symbol: String, tint: Color, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(15.dp)).background(Panel).padding(14.dp)) {
+        Text(symbol, color = tint, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    }
+}
+
+@Composable
+fun MessagesScreen(modifier: Modifier = Modifier) {
+    var query by remember { mutableStateOf("") }
+    var selectedMessage by remember { mutableStateOf<String?>(null) }
+    val chats = listOf(
+        Triple("Sami", "আজকের রুমে দেখা হবে!", "2m"),
+        Triple("Nayeem", "প্রবাস জীবনের গল্পটা দারুণ ছিল", "18m"),
+        Triple("Mitu", "ধন্যবাদ ❤️", "1h"),
+        Triple("Arif", "নতুন লাইভ শুরু করেছি", "3h"),
+        Triple("VoxMeet Team", "VoxMeet কমিউনিটিতে স্বাগতম!", "1d")
+    )
+    Column(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Text("YOUR INBOX", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+        Text("Messages", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Text("বন্ধুদের সঙ্গে যোগাযোগ রাখো", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(15.dp))
+        OutlinedTextField(
+            value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, placeholder = { Text("মেসেজ খুঁজুন", color = Muted) },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = Aqua) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
+                cursorColor = Pink, focusedContainerColor = Panel, unfocusedContainerColor = Panel
+            )
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Recent chats", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("ডেমো ইনবক্স", color = Muted, fontSize = 10.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            items(chats.filter { it.first.contains(query, true) || it.second.contains(query, true) }) { chat ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                        .clickable { selectedMessage = chat.first }.padding(13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Violet, Pink))), contentAlignment = Alignment.Center) {
+                        Text(chat.first.take(1), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(chat.first, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(chat.second, color = Muted, fontSize = 11.sp, maxLines = 1)
+                    }
+                    Text(chat.third, color = Aqua, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+    if (selectedMessage != null) {
+        AlertDialog(
+            onDismissRequest = { selectedMessage = null }, containerColor = Panel,
+            title = { Text(selectedMessage!!, color = Color.White) },
+            text = { Text("এই ইনবক্সটি এখন ডিজাইন ডেমো। ব্যক্তিগত মেসেজ সংরক্ষণ ও পাঠাতে মেসেজিং ব্যাকএন্ড যুক্ত করতে হবে।", color = Muted) },
+            confirmButton = { TextButton(onClick = { selectedMessage = null }) { Text("ঠিক আছে") } }
+        )
+    }
+}
+
+@Composable
+fun ProfileScreen(modifier: Modifier = Modifier) {
+    var showWallet by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 100.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("MY ACCOUNT", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+                    Text("My Profile", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(Icons.Default.Settings, "Settings", tint = Color.White)
+                }
+            }
+        }
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF643B91), Color(0xFF292044), Color(0xFF9A477D))))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(Modifier.size(86.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
+                    Text("R", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("VoxMeet User", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text("নতুন কমিউনিটি সদস্য", color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Spacer(Modifier.height(15.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    ProfileMetric("0", "Following")
+                    ProfileMetric("0", "Followers")
+                    ProfileMetric("0", "Gifts")
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).clickable { showWallet = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Diamond, null, tint = Color(0xFFFFC857), modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("My Wallet", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Coins ও লেনদেনের তথ্য", color = Muted, fontSize = 11.sp)
+                }
+                Text("120 coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        item { Text("ACCOUNT & SUPPORT", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
+        item { ProfileMenuRow("✎", "Edit Profile", "নাম, ছবি ও পরিচিতি") { showSettings = true } }
+        item { ProfileMenuRow("♧", "Privacy & Safety", "অ্যাকাউন্ট সুরক্ষা") { showSettings = true } }
+        item { ProfileMenuRow("♧", "Help & Support", "সহায়তা ও যোগাযোগ") { showSettings = true } }
+        item { ProfileMenuRow("⚙", "Settings", "অ্যাপের পছন্দসমূহ") { showSettings = true } }
+        item {
+            Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
+        }
+    }
+    if (showWallet) {
+        AlertDialog(
+            onDismissRequest = { showWallet = false }, containerColor = Panel,
+            title = { Text("My Wallet", color = Color.White) },
+            text = { Text("বর্তমান প্রদর্শিত ব্যালেন্স: 120 ডেমো কয়েন। বাস্তব পেমেন্ট ও লেনদেন চালু করার আগে নিরাপদ সার্ভার এবং পেমেন্ট প্রোভাইডার সংযুক্ত করতে হবে।", color = Muted) },
+            confirmButton = { TextButton(onClick = { showWallet = false }) { Text("ঠিক আছে") } }
+        )
+    }
+    if (showSettings) {
+        AlertDialog(
+            onDismissRequest = { showSettings = false }, containerColor = Panel,
+            title = { Text("Account settings", color = Color.White) },
+            text = { Text("প্রোফাইল এডিট, লগইন, OTP ভেরিফিকেশন ও নিরাপত্তার সেটিংস পরবর্তী ব্যাকএন্ড ধাপে যুক্ত হবে।", color = Muted) },
+            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("বন্ধ") } }
+        )
+    }
+}
+
+@Composable
+fun ProfileMetric(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Muted, fontSize = 10.sp)
+    }
+}
+
+@Composable
+fun ProfileMenuRow(symbol: String, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Panel)
+            .clickable(onClick = onClick).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(symbol, color = Aqua, fontSize = 20.sp, modifier = Modifier.width(34.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(subtitle, color = Muted, fontSize = 10.sp)
+        }
+        Text("›", color = Muted, fontSize = 22.sp)
     }
 }
