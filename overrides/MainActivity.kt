@@ -226,15 +226,13 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("VOXMEET", color = Pink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
-                    Text("Live your moment", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("VOXMEET", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+                    Text("Live your moment", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("তোমার কমিউনিটি, তোমার গল্প", color = Muted, fontSize = 10.sp)
                 }
                 WalletPill(walletCoins, onWallet)
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { }) {
-                    Icon(Icons.Default.Search, "Search", tint = Color.White)
-                }
+                Spacer(Modifier.width(5.dp))
                 IconButton(onClick = { }) {
                     Icon(Icons.Default.NotificationsNone, "Notifications", tint = Color.White)
                 }
@@ -247,11 +245,16 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
                     .clickable { onGoLive() }.padding(17.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Your stage is waiting", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("YOUR VOICE, YOUR STAGE", color = Color(0xFFFFC8E0), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
+                    Text("Your stage is waiting", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
                     Text("Go live, meet new people and share your vibe", color = Color(0xFFE9DDF5), fontSize = 11.sp)
-                    Text("＋  START LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 13.dp, vertical = 8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("＋  START LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 13.dp, vertical = 8.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("শুরু করো", color = Color(0xFFE9DDF5), fontSize = 10.sp)
+                    }
                 }
                 Box(Modifier.size(66.dp).clip(CircleShape).background(Color.White.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Videocam, null, tint = Color.White, modifier = Modifier.size(39.dp))
@@ -362,21 +365,39 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.fillMaxWidth().height(112.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(Color(0xFF553C7A), Color(0xFF252047), Color(0xFF9A477D))))) {
-                Icon(Icons.Default.Groups, null, tint = Color.White.copy(alpha = .18f), modifier = Modifier.align(Alignment.Center).size(78.dp))
-                Text("● LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.TopStart).padding(9.dp).clip(RoundedCornerShape(8.dp)).background(Pink).padding(horizontal = 8.dp, vertical = 5.dp))
-                Text("👥 ${room.people}", color = Color.White, fontSize = 11.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(9.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = .35f)).padding(horizontal = 8.dp, vertical = 5.dp))
+            Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(15.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF713E91), Color(0xFF282044), Color(0xFFB34D83))))) {
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .16f), Color.Transparent, Color.Black.copy(alpha = .12f)))))
+                Icon(Icons.Default.Groups, null, tint = Color.White.copy(alpha = .20f), modifier = Modifier.align(Alignment.Center).size(88.dp))
+                Text("● LIVE NOW", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(10.dp).clip(RoundedCornerShape(8.dp)).background(Pink).padding(horizontal = 9.dp, vertical = 6.dp))
+                Row(Modifier.align(Alignment.TopEnd).padding(9.dp).clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = .30f)).padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.People, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("${room.people}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(room.tag.uppercase(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).clip(RoundedCornerShape(7.dp))
+                        .background(Color.Black.copy(alpha = .28f)).padding(horizontal = 8.dp, vertical = 5.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(room.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("Host: ${room.host}  •  ${room.tag}", color = Muted, fontSize = 11.sp)
+                Box(Modifier.size(38.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
+                    Text(room.host.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(room.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Host: ${room.host}", color = Muted, fontSize = 10.sp)
                 }
                 Icon(Icons.Default.FavoriteBorder, null, tint = Pink)
             }
-            Text(room.topic, color = Muted, fontSize = 12.sp)
+            Text(room.topic, color = Muted, fontSize = 11.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(room.tag, color = Aqua, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(Aqua.copy(alpha = .10f)).padding(horizontal = 8.dp, vertical = 5.dp))
+                Text("রুমে যোগ দিন  ›", color = Pink, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -636,10 +657,23 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
         Triple("VoxMeet Team", "VoxMeet কমিউনিটিতে স্বাগতম!", "1d")
     )
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text("YOUR INBOX", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
-        Text("Messages", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+        Text("YOUR INBOX", color = Pink, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+        Text("Messages", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
         Text("বন্ধুদের সঙ্গে যোগাযোগ রাখো", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(13.dp))
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Forum, null, tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("তোমার কমিউনিটি ইনবক্স", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("নতুন কথোপকথন এখানে দেখা যাবে", color = Muted, fontSize = 9.sp)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = Muted)
+        }
+        Spacer(Modifier.height(13.dp))
         OutlinedTextField(
             value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
             singleLine = true, placeholder = { Text("মেসেজ খুঁজুন", color = Muted) },
@@ -659,7 +693,8 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(chats.filter { it.first.contains(query, true) || it.second.contains(query, true) }) { chat ->
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF28203D))))
                         .clickable { selectedMessage = chat.first }.padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
