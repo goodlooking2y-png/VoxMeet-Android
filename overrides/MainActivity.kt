@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
 
 private val Ink = Color(0xFF100D20)
 private val Panel = Color(0xFF211A35)
@@ -723,6 +724,9 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun ProfileScreen(modifier: Modifier = Modifier) {
+    val auth = remember { FirebaseAuth.getInstance() }
+    val accountUser = auth.currentUser
+    var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
@@ -785,14 +789,49 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Text("120 coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
+        item {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Panel).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.VerifiedUser, null, tint = Aqua, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("SIGNED IN", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text(accountUser?.email ?: accountUser?.phoneNumber ?: "VoxMeet account", color = Color.White, fontSize = 12.sp)
+                }
+            }
+        }
         item { Text("ACCOUNT & SUPPORT", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
         item { ProfileMenuRow("✎", "Edit Profile", "নাম, ছবি ও পরিচিতি") { draftName = profileName; draftBio = profileBio; showEdit = true } }
         item { ProfileMenuRow("♧", "Privacy & Safety", "অ্যাকাউন্ট সুরক্ষা") { showPrivacy = true } }
         item { ProfileMenuRow("♧", "Help & Support", "সাহায্য, FAQ ও যোগাযোগ") { showHelp = true } }
         item { ProfileMenuRow("⚙", "Settings", "নোটিফিকেশন ও অ্যাপের পছন্দ") { showSettings = true } }
+        item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
     if (showWallet) WalletDialog(coins = 120, onDismiss = { showWallet = false })
+    if (showSignOutConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirmation = false },
+            containerColor = Panel,
+            title = { Text("Sign out?", color = Color.White) },
+            text = { Text("আপনি কি VoxMeet অ্যাকাউন্ট থেকে বের হতে চান?", color = Muted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    auth.signOut()
+                    showSignOutConfirmation = false
+                }) {
+                    Text("লগআউট", color = Pink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutConfirmation = false }) {
+                    Text("থাক", color = Muted)
+                }
+            }
+        )
+    }
     if (showEdit) {
         AlertDialog(
             onDismissRequest = { showEdit = false }, containerColor = Panel,
