@@ -3,10 +3,12 @@ package com.rakib.voxmeet
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.util.Patterns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,10 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
@@ -29,6 +34,7 @@ private val AuthPanelColor = Color(0xFF211A35)
 private val AuthPinkColor = Color(0xFFFF4D91)
 private val AuthVioletColor = Color(0xFF9167FF)
 private val AuthMutedColor = Color(0xFFB9B2C9)
+private val AuthErrorColor = Color(0xFFFF8C9D)
 
 @Composable
 fun VoxMeetAuthGate(content: @Composable () -> Unit) {
@@ -39,11 +45,12 @@ fun VoxMeetAuthGate(content: @Composable () -> Unit) {
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
+    val currentUser = user
     when {
-        user == null -> VoxMeetAuthScreen(auth)
-        user!!.isEmailVerified || !user!!.phoneNumber.isNullOrBlank() -> content()
-        else -> EmailVerificationScreen(auth, user!!) {
-            user!!.reload().addOnCompleteListener { user = auth.currentUser }
+        currentUser == null -> VoxMeetAuthScreen(auth)
+        currentUser.isEmailVerified || !currentUser.phoneNumber.isNullOrBlank() -> content()
+        else -> EmailVerificationScreen(auth, currentUser) { refreshedUser ->
+            user = refreshedUser
         }
     }
 }
@@ -57,9 +64,78 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
     var phone by remember { mutableStateOf("") }
     var otp by remember { mutableStateOf("") }
     var verificationId by remember { mutableStateOf<String?>(null) }
+    var resendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("আপনার VoxMeet অ্যাকাউন্ট তৈরি করুন অথবা লগইন করুন") }
+    var messageIsError by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    fun showInfo(text: String) {
+        message = text
+        messageIsError = false
+    }
+
+    fun showError(text: String) {
+        message = text
+        messageIsError = true
+    }
+
+    fun requestPhoneCode(forceResend: Boolean) {
+        val normalizedPhone = phone.trim().replace(" ", "").replace("-", "")
+        val activity = context.findHostActivity()
+        if (activity == null) {
+            showError("ফোন যাচাই শুরু করা যায়নি। অ্যাপটি আবার খুলে চেষ্টা করুন।")
+            return
+        }
+        if (!Regex("^\\+[1-9]\\d{7,14}$").matches(normalizedPhone)) {
+            showError("দেশের কোডসহ সঠিক ফোন নম্বর লিখুন, যেমন +8801XXXXXXXXX")
+            return
+        }
+
+        busy = true
+        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+            override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
+                auth.signInWithCredential(credential).addOnCompleteListener { result ->
+                    busy = false
+                    if (result.isSuccessful) showInfo("ফোন যাচাই সফল হয়েছে。")
+                    else showError(authErrorMessage(result.exception, "ফোন দিয়ে লগইন করা যায়নি।"))
+                }
+            }
+
+            override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
+                busy = false
+                showError(authErrorMessage(error, "OTP পাঠানো যায়নি। Firebase Phone provider ও নম্বর পরীক্ষা করুন।"))
+            }
+
+            override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
+                verificationId = id
+                resendToken = token
+                busy = false
+                showInfo("OTP পাঠানো হয়েছে। SMS থেকে ৬ সংখ্যার কোড লিখুন।")
+            }
+
+            override fun onCodeAutoRetrievalTimeOut(id: String) {
+                verificationId = id
+                busy = false
+                showInfo("স্বয়ংক্রিয় যাচাইয়ের সময় শেষ। SMS-এর OTP লিখুন অথবা আবার পাঠান।")
+            }
+        }
+
+        try {
+            val optionsBuilder = PhoneAuthOptions.newBuilder(auth)
+                .setPhoneNumber(normalizedPhone)
+                .setTimeout(60L, TimeUnit.SECONDS)
+                .setActivity(activity)
+                .setCallbacks(callbacks)
+            if (forceResend) {
+                resendToken?.let { optionsBuilder.setForceResendingToken(it) }
+            }
+            PhoneAuthProvider.verifyPhoneNumber(optionsBuilder.build())
+        } catch (error: Exception) {
+            busy = false
+            showError(authErrorMessage(error, "OTP অনুরোধ করা যায়নি। আবার চেষ্টা করুন।"))
+        }
+    }
 
     Surface(Modifier.fillMaxSize(), color = AuthBg) {
         Column(
@@ -74,44 +150,61 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
             Spacer(Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth().background(AuthPanelColor, RoundedCornerShape(14.dp)).padding(4.dp)) {
                 listOf("email" to "ইমেইল", "phone" to "ফোন OTP").forEach { (key, label) ->
-                    TextButton(onClick = { mode = key; message = if (key == "email") "ইমেইল দিয়ে প্রবেশ করুন" else "দেশের কোডসহ ফোন নম্বর দিন" }, modifier = Modifier.weight(1f)) {
+                    TextButton(
+                        onClick = {
+                            mode = key
+                            verificationId = null
+                            resendToken = null
+                            otp = ""
+                            showInfo(if (key == "email") "ইমেইল দিয়ে প্রবেশ করুন" else "দেশের কোডসহ ফোন নম্বর দিন")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(label, color = if (mode == key) Color.White else AuthMutedColor, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
             if (mode == "email") {
-                AuthInput(email, { email = it }, "ইমেইল ঠিকানা")
+                AuthInput(email, { email = it }, "ইমেইল ঠিকানা", KeyboardType.Email)
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = password, onValueChange = { password = it }, label = { Text("পাসওয়ার্ড") },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(), colors = authInputColors()
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    colors = authInputColors()
                 )
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = {
-                        if (email.isBlank() || password.length < 6) {
-                            message = "সঠিক ইমেইল দিন এবং কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড লিখুন"
+                        val cleanEmail = email.trim()
+                        if (!Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                            showError("সঠিক ইমেইল ঠিকানা লিখুন।")
+                        } else if (password.length < 6) {
+                            showError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।")
                         } else {
                             busy = true
-                            val task = if (register) auth.createUserWithEmailAndPassword(email.trim(), password)
-                                else auth.signInWithEmailAndPassword(email.trim(), password)
+                            val task = if (register) auth.createUserWithEmailAndPassword(cleanEmail, password)
+                                else auth.signInWithEmailAndPassword(cleanEmail, password)
                             task.addOnCompleteListener { result ->
                                 if (!result.isSuccessful) {
                                     busy = false
-                                    message = result.exception?.localizedMessage ?: "লগইন/রেজিস্ট্রেশন হয়নি"
+                                    showError(authErrorMessage(result.exception, "লগইন বা রেজিস্ট্রেশন সম্পন্ন হয়নি।"))
                                 } else {
                                     val current = auth.currentUser
                                     if (register && current != null) {
                                         current.sendEmailVerification().addOnCompleteListener { sent ->
                                             busy = false
-                                            message = if (sent.isSuccessful) "ভেরিফিকেশন ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখে লিংকে চাপ দিন।"
-                                                else sent.exception?.localizedMessage ?: "ভেরিফিকেশন ইমেইল পাঠানো যায়নি"
+                                            if (sent.isSuccessful) {
+                                                showInfo("ভেরিফিকেশন ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখে লিংকে চাপ দিন।")
+                                            } else {
+                                                showError(authErrorMessage(sent.exception, "ভেরিফিকেশন ইমেইল পাঠানো যায়নি।"))
+                                            }
                                         }
                                     } else {
                                         busy = false
-                                        message = if (current?.isEmailVerified == true) "লগইন সফল" else "ইমেইল এখনো ভেরিফাই হয়নি। ইমেইল থেকে ভেরিফাই করুন।"
+                                        showInfo(if (current?.isEmailVerified == true) "লগইন সফল।" else "ইমেইল এখনো ভেরিফাই হয়নি। ইমেইলের লিংকে চাপ দিন।")
                                     }
                                 }
                             }
@@ -120,77 +213,94 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
                     enabled = !busy, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = AuthVioletColor)
                 ) { Text(if (busy) "অপেক্ষা করুন..." else if (register) "অ্যাকাউন্ট তৈরি করুন" else "লগইন করুন") }
-                TextButton(onClick = { register = !register; message = if (register) "নতুন অ্যাকাউন্ট তৈরি করুন" else "আপনার অ্যাকাউন্টে লগইন করুন" }) {
+                TextButton(onClick = {
+                    register = !register
+                    showInfo(if (register) "নতুন অ্যাকাউন্ট তৈরি করুন" else "আপনার অ্যাকাউন্টে লগইন করুন")
+                }, enabled = !busy) {
                     Text(if (register) "আগে অ্যাকাউন্ট আছে? লগইন করুন" else "নতুন ব্যবহারকারী? রেজিস্ট্রেশন করুন", color = AuthPinkColor)
                 }
                 TextButton(onClick = {
-                    if (email.isBlank()) message = "পাসওয়ার্ড রিসেটের জন্য আগে ইমেইল লিখুন"
-                    else {
+                    val cleanEmail = email.trim()
+                    if (!Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                        showError("পাসওয়ার্ড রিসেটের আগে সঠিক ইমেইল লিখুন।")
+                    } else {
                         busy = true
-                        auth.sendPasswordResetEmail(email.trim()).addOnCompleteListener { result ->
+                        auth.sendPasswordResetEmail(cleanEmail).addOnCompleteListener { result ->
                             busy = false
-                            message = if (result.isSuccessful) "পাসওয়ার্ড রিসেটের ইমেইল পাঠানো হয়েছে"
-                                else result.exception?.localizedMessage ?: "রিসেট ইমেইল পাঠানো যায়নি"
+                            if (result.isSuccessful) {
+                                showInfo("যদি এই ইমেইলে অ্যাকাউন্ট থাকে, পাসওয়ার্ড রিসেটের নির্দেশনা পাঠানো হয়েছে।")
+                            } else {
+                                showError(authErrorMessage(result.exception, "রিসেট ইমেইল পাঠানো যায়নি।"))
+                            }
                         }
                     }
                 }, enabled = !busy) { Text("পাসওয়ার্ড ভুলে গেছেন?", color = AuthMutedColor) }
             } else {
-                AuthInput(phone, { phone = it }, "ফোন নম্বর (+880...)")
+                AuthInput(phone, { phone = it }, "ফোন নম্বর (+880...)", KeyboardType.Phone)
                 Spacer(Modifier.height(10.dp))
                 if (verificationId == null) {
-                    Button(onClick = {
-                        val activity = context.findHostActivity()
-                        if (activity == null || !phone.trim().startsWith("+")) {
-                            message = "দেশের কোডসহ নম্বর লিখুন, যেমন +8801XXXXXXXXX"
-                        } else {
-                            busy = true
-                            val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                                override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
-                                    auth.signInWithCredential(credential).addOnCompleteListener { result ->
-                                        busy = false
-                                        message = if (result.isSuccessful) "ফোন ভেরিফিকেশন সফল"
-                                            else result.exception?.localizedMessage ?: "ফোন লগইন হয়নি"
-                                    }
-                                }
-                                override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
-                                    busy = false
-                                    message = error.localizedMessage ?: "OTP পাঠানো যায়নি। নম্বর ও Firebase সেটিংস পরীক্ষা করুন।"
-                                }
-                                override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
-                                    verificationId = id
-                                    busy = false
-                                    message = "OTP পাঠানো হয়েছে। SMS থেকে কোড লিখুন।"
-                                }
-                            }
-                            val options = PhoneAuthOptions.newBuilder(auth).setPhoneNumber(phone.trim())
-                                .setTimeout(60L, TimeUnit.SECONDS).setActivity(activity).setCallbacks(callbacks).build()
-                            PhoneAuthProvider.verifyPhoneNumber(options)
-                        }
-                    }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AuthVioletColor)) {
+                    Button(
+                        onClick = { requestPhoneCode(forceResend = false) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AuthVioletColor)
+                    ) {
                         Text(if (busy) "OTP পাঠানো হচ্ছে..." else "OTP পাঠান")
                     }
                 } else {
-                    AuthInput(otp, { otp = it }, "SMS-এর OTP কোড")
+                    AuthInput(
+                        otp,
+                        { otp = it.filter(Char::isDigit).take(6) },
+                        "SMS-এর ৬ সংখ্যার OTP",
+                        KeyboardType.NumberPassword
+                    )
                     Spacer(Modifier.height(10.dp))
-                    Button(onClick = {
-                        val id = verificationId
-                        if (id.isNullOrBlank() || otp.isBlank()) message = "OTP কোড লিখুন"
-                        else {
-                            busy = true
-                            auth.signInWithCredential(PhoneAuthProvider.getCredential(id, otp.trim())).addOnCompleteListener { result ->
-                                busy = false
-                                message = if (result.isSuccessful) "ফোন লগইন সফল"
-                                    else result.exception?.localizedMessage ?: "OTP সঠিক নয়"
+                    Button(
+                        onClick = {
+                            val id = verificationId
+                            if (id.isNullOrBlank() || otp.length != 6) {
+                                showError("SMS থেকে পাওয়া ৬ সংখ্যার OTP লিখুন।")
+                            } else {
+                                busy = true
+                                auth.signInWithCredential(PhoneAuthProvider.getCredential(id, otp)).addOnCompleteListener { result ->
+                                    busy = false
+                                    if (result.isSuccessful) {
+                                        showInfo("ফোন লগইন সফল।")
+                                    } else {
+                                        showError(authErrorMessage(result.exception, "OTP সঠিক নয় বা মেয়াদ শেষ হয়েছে।"))
+                                    }
+                                }
                             }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AuthVioletColor)
+                    ) {
+                        Text(if (busy) "যাচাই হচ্ছে..." else "OTP যাচাই করুন")
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        TextButton(
+                            onClick = { requestPhoneCode(forceResend = true) },
+                            enabled = !busy && resendToken != null
+                        ) {
+                            Text("OTP আবার পাঠান", color = AuthPinkColor)
                         }
-                    }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AuthVioletColor)) { Text("OTP যাচাই করুন") }
-                    TextButton(onClick = { verificationId = null; otp = "" }) { Text("নম্বর পরিবর্তন করুন", color = AuthPinkColor) }
+                        TextButton(
+                            onClick = {
+                                verificationId = null
+                                resendToken = null
+                                otp = ""
+                                showInfo("নতুন ফোন নম্বর লিখুন।")
+                            },
+                            enabled = !busy
+                        ) {
+                            Text("নম্বর পরিবর্তন", color = AuthMutedColor)
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text(message, color = AuthMutedColor, fontSize = 12.sp)
+            Text(message, color = if (messageIsError) AuthErrorColor else AuthMutedColor, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             Text("আপনার তথ্য Firebase Authentication দিয়ে যাচাই করা হবে।", color = AuthMutedColor, fontSize = 10.sp)
         }
@@ -198,40 +308,66 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
 }
 
 @Composable
-private fun EmailVerificationScreen(auth: FirebaseAuth, user: FirebaseUser, onRefresh: () -> Unit) {
-    var message by remember { mutableStateOf("আপনার ইমেইলে পাঠানো লিংকে চাপ দিয়ে অ্যাকাউন্ট ভেরিফাই করুন।") }
-    var busy by remember { mutableStateOf(false) }
+private fun EmailVerificationScreen(
+    auth: FirebaseAuth,
+    user: FirebaseUser,
+    onRefresh: (FirebaseUser) -> Unit
+) {
+    var message by remember(user.uid) { mutableStateOf("আপনার ইমেইলে পাঠানো লিংকে চাপ দিয়ে অ্যাকাউন্ট ভেরিফাই করুন।") }
+    var messageIsError by remember(user.uid) { mutableStateOf(false) }
+    var busy by remember(user.uid) { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = AuthBg) {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Text("ইমেইল যাচাই করুন", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(user.email ?: "", color = AuthPinkColor)
             Spacer(Modifier.height(16.dp))
-            Text(message, color = AuthMutedColor)
+            Text(message, color = if (messageIsError) AuthErrorColor else AuthMutedColor)
             Spacer(Modifier.height(16.dp))
             Button(onClick = {
                 busy = true
-                user.reload().addOnCompleteListener {
+                user.reload().addOnCompleteListener { result ->
                     busy = false
-                    onRefresh()
-                    message = if (auth.currentUser?.isEmailVerified == true) "ইমেইল ভেরিফাই হয়েছে" else "এখনো ভেরিফাই হয়নি। ইমেইলের লিংকে চাপ দিন।"
+                    if (result.isSuccessful) {
+                        val refreshedUser = auth.currentUser ?: user
+                        onRefresh(refreshedUser)
+                        messageIsError = false
+                        message = if (refreshedUser.isEmailVerified) "ইমেইল ভেরিফাই হয়েছে।" else "এখনো ভেরিফাই হয়নি। ইমেইলের লিংকে চাপ দিন।"
+                    } else {
+                        messageIsError = true
+                        message = authErrorMessage(result.exception, "ভেরিফিকেশন অবস্থা যাচাই করা যায়নি।")
+                    }
                 }
             }, enabled = !busy) { Text("ভেরিফিকেশন চেক করুন") }
             TextButton(onClick = {
                 busy = true
                 user.sendEmailVerification().addOnCompleteListener { result ->
                     busy = false
-                    message = if (result.isSuccessful) "আবার ভেরিফিকেশন ইমেইল পাঠানো হয়েছে"
-                        else result.exception?.localizedMessage ?: "ইমেইল পাঠানো যায়নি"
+                    messageIsError = !result.isSuccessful
+                    message = if (result.isSuccessful) "আবার ভেরিফিকেশন ইমেইল পাঠানো হয়েছে।"
+                        else authErrorMessage(result.exception, "ইমেইল পাঠানো যায়নি।")
                 }
             }, enabled = !busy) { Text("আবার ইমেইল পাঠান", color = AuthPinkColor) }
-            TextButton(onClick = { auth.signOut() }) { Text("অন্য অ্যাকাউন্ট দিয়ে প্রবেশ করুন", color = AuthMutedColor) }
+            TextButton(onClick = { auth.signOut() }, enabled = !busy) { Text("অন্য অ্যাকাউন্ট দিয়ে প্রবেশ করুন", color = AuthMutedColor) }
         }
     }
 }
 
 @Composable
-private fun AuthInput(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(value, onChange, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = authInputColors())
+private fun AuthInput(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+        colors = authInputColors()
+    )
 }
 
 @Composable
@@ -241,6 +377,26 @@ private fun authInputColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = AuthPinkColor, unfocusedLabelColor = AuthMutedColor,
     cursorColor = AuthPinkColor, focusedContainerColor = AuthPanelColor, unfocusedContainerColor = AuthPanelColor
 )
+
+
+private fun authErrorMessage(error: Throwable?, fallback: String): String {
+    val code = (error as? FirebaseAuthException)?.errorCode
+    return when (code) {
+        "ERROR_INVALID_EMAIL" -> "ইমেইল ঠিকানাটি সঠিক নয়।"
+        "ERROR_EMAIL_ALREADY_IN_USE" -> "এই ইমেইল দিয়ে আগে থেকেই অ্যাকাউন্ট আছে। লগইন করুন।"
+        "ERROR_WEAK_PASSWORD" -> "আরও শক্তিশালী পাসওয়ার্ড দিন। কমপক্ষে ৬ অক্ষর প্রয়োজন।"
+        "ERROR_INVALID_CREDENTIAL", "ERROR_WRONG_PASSWORD", "ERROR_USER_NOT_FOUND" -> "ইমেইল বা পাসওয়ার্ড সঠিক নয়।"
+        "ERROR_USER_DISABLED" -> "এই অ্যাকাউন্টটি সাময়িকভাবে বন্ধ আছে।"
+        "ERROR_OPERATION_NOT_ALLOWED" -> "Firebase Console-এ প্রয়োজনীয় Email/Phone sign-in provider চালু করতে হবে।"
+        "ERROR_INVALID_PHONE_NUMBER" -> "দেশের কোডসহ সঠিক ফোন নম্বর লিখুন।"
+        "ERROR_INVALID_VERIFICATION_CODE" -> "OTP কোডটি সঠিক নয়। আবার চেষ্টা করুন।"
+        "ERROR_SESSION_EXPIRED" -> "OTP-এর মেয়াদ শেষ হয়েছে। নতুন OTP নিন।"
+        "ERROR_APP_NOT_AUTHORIZED", "ERROR_INVALID_APP_CREDENTIAL" -> "Firebase Console-এ Android SHA-1/SHA-256 fingerprint ও Phone Auth সেটিংস যাচাই করতে হবে।"
+        "ERROR_TOO_MANY_REQUESTS", "ERROR_QUOTA_EXCEEDED" -> "অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।"
+        "ERROR_NETWORK_REQUEST_FAILED" -> "ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।"
+        else -> error?.localizedMessage ?: fallback
+    }
+}
 
 private fun Context.findHostActivity(): Activity? {
     var current: Context = this
