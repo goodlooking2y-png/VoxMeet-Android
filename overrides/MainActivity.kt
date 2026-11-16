@@ -689,7 +689,21 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 @Composable
 fun ProfileScreen(modifier: Modifier = Modifier) {
     var showWallet by remember { mutableStateOf(false) }
+    var showEdit by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var profileName by remember { mutableStateOf("VoxMeet User") }
+    var profileBio by remember { mutableStateOf("নতুন কমিউনিটি সদস্য") }
+    var draftName by remember { mutableStateOf(profileName) }
+    var draftBio by remember { mutableStateOf(profileBio) }
+    var privateProfile by remember { mutableStateOf(false) }
+    var allowMessages by remember { mutableStateOf(true) }
+    var showOnlineStatus by remember { mutableStateOf(true) }
+    var notificationsEnabled by remember { mutableStateOf(true) }
+    var soundEnabled by remember { mutableStateOf(true) }
+    var vibrationEnabled by remember { mutableStateOf(true) }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 100.dp),
@@ -701,9 +715,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     Text("MY ACCOUNT", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
                     Text("My Profile", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                 }
-                IconButton(onClick = { showSettings = true }) {
-                    Icon(Icons.Default.Settings, "Settings", tint = Color.White)
-                }
+                IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Color.White) }
             }
         }
         item {
@@ -714,11 +726,11 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(Modifier.size(86.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
-                    Text("R", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(profileName.take(1).uppercase(), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.height(10.dp))
-                Text("VoxMeet User", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text("নতুন কমিউনিটি সদস্য", color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(profileBio, color = Color(0xFFE8DDF5), fontSize = 11.sp)
                 Spacer(Modifier.height(15.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     ProfileMetric("0", "Following")
@@ -739,28 +751,94 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
             }
         }
         item { Text("ACCOUNT & SUPPORT", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
-        item { ProfileMenuRow("✎", "Edit Profile", "নাম, ছবি ও পরিচিতি") { showSettings = true } }
-        item { ProfileMenuRow("♧", "Privacy & Safety", "অ্যাকাউন্ট সুরক্ষা") { showSettings = true } }
-        item { ProfileMenuRow("♧", "Help & Support", "সহায়তা ও যোগাযোগ") { showSettings = true } }
-        item { ProfileMenuRow("⚙", "Settings", "অ্যাপের পছন্দসমূহ") { showSettings = true } }
-        item {
-            Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
-        }
+        item { ProfileMenuRow("✎", "Edit Profile", "নাম, ছবি ও পরিচিতি") { draftName = profileName; draftBio = profileBio; showEdit = true } }
+        item { ProfileMenuRow("♧", "Privacy & Safety", "অ্যাকাউন্ট সুরক্ষা") { showPrivacy = true } }
+        item { ProfileMenuRow("♧", "Help & Support", "সাহায্য, FAQ ও যোগাযোগ") { showHelp = true } }
+        item { ProfileMenuRow("⚙", "Settings", "নোটিফিকেশন ও অ্যাপের পছন্দ") { showSettings = true } }
+        item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
-    if (showWallet) {
+    if (showWallet) WalletDialog(coins = 120, onDismiss = { showWallet = false })
+    if (showEdit) {
         AlertDialog(
-            onDismissRequest = { showWallet = false }, containerColor = Panel,
-            title = { Text("My Wallet", color = Color.White) },
-            text = { Text("বর্তমান প্রদর্শিত ব্যালেন্স: 120 ডেমো কয়েন। বাস্তব পেমেন্ট ও লেনদেন চালু করার আগে নিরাপদ সার্ভার এবং পেমেন্ট প্রোভাইডার সংযুক্ত করতে হবে।", color = Muted) },
-            confirmButton = { TextButton(onClick = { showWallet = false }) { Text("ঠিক আছে") } }
+            onDismissRequest = { showEdit = false }, containerColor = Panel,
+            title = { Text("Edit Profile", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = draftName, onValueChange = { draftName = it }, label = { Text("নাম") }, singleLine = true)
+                    OutlinedTextField(value = draftBio, onValueChange = { draftBio = it }, label = { Text("পরিচিতি / Bio") }, minLines = 2)
+                    Text("এই পরিবর্তন আপাতত এই অ্যাপ সেশনে থাকবে। স্থায়ীভাবে সংরক্ষণের জন্য প্রোফাইল ব্যাকএন্ড লাগবে।", color = Muted, fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (draftName.isNotBlank()) { profileName = draftName.trim(); profileBio = draftBio.trim(); showEdit = false }
+                }) { Text("সংরক্ষণ") }
+            },
+            dismissButton = { TextButton(onClick = { showEdit = false }) { Text("বাতিল") } }
+        )
+    }
+    if (showPrivacy) {
+        AlertDialog(
+            onDismissRequest = { showPrivacy = false }, containerColor = Panel,
+            title = { Text("Privacy & Safety", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text("প্রাইভেট প্রোফাইল", color = Color.White); Text("প্রোফাইলের দৃশ্যমানতা সীমিত", color = Muted, fontSize = 10.sp) }
+                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text("মেসেজ গ্রহণ", color = Color.White); Text("অন্যদের মেসেজ পাঠাতে অনুমতি", color = Muted, fontSize = 10.sp) }
+                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text("অনলাইন স্ট্যাটাস", color = Color.White); Text("আপনি অনলাইনে আছেন কি না", color = Muted, fontSize = 10.sp) }
+                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it })
+                    }
+                    Text("এগুলো আপাতত শুধু এই ডিভাইসের UI সেটিং। সার্ভার-ভিত্তিক প্রাইভেসি প্রয়োগ এখনো সংযুক্ত নয়।", color = Muted, fontSize = 10.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("ঠিক আছে") } }
+        )
+    }
+    if (showHelp) {
+        AlertDialog(
+            onDismissRequest = { showHelp = false }, containerColor = Panel,
+            title = { Text("Help & Support", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("VoxMeet সহায়তা", color = Aqua, fontWeight = FontWeight.Bold)
+                    Text("• অ্যাকাউন্টে প্রবেশ করতে সমস্যা হলে Email/Phone নম্বর যাচাই করুন।", color = Color.White, fontSize = 12.sp)
+                    Text("• Live Room-এ মাইক্রোফোন ব্যবহারে Android permission দিন।", color = Color.White, fontSize = 12.sp)
+                    Text("• Coins ও পেমেন্ট এখনো ডেমো; বাস্তব লেনদেন করবেন না।", color = Color.White, fontSize = 12.sp)
+                    Text("সাপোর্ট ইমেইল ও সরাসরি টিকিট ব্যবস্থা Backend ধাপে যুক্ত করা হবে।", color = Muted, fontSize = 11.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("বন্ধ") } }
         )
     }
     if (showSettings) {
         AlertDialog(
             onDismissRequest = { showSettings = false }, containerColor = Panel,
-            title = { Text("Account settings", color = Color.White) },
-            text = { Text("প্রোফাইল এডিট, লগইন, OTP ভেরিফিকেশন ও নিরাপত্তার সেটিংস পরবর্তী ব্যাকএন্ড ধাপে যুক্ত হবে।", color = Muted) },
-            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("বন্ধ") } }
+            title = { Text("Settings", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f))
+                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f))
+                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f))
+                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it })
+                    }
+                    Text("এই পছন্দগুলো আপাতত অ্যাপ সেশনে থাকে; স্থায়ী সেটিংস সংরক্ষণ পরবর্তী ধাপ।", color = Muted, fontSize = 10.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("ঠিক আছে") } }
         )
     }
 }
