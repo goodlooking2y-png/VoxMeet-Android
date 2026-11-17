@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [ main, work/bigo-live-ui ]
+  pull_request:
+    branches: [ work/bigo-live-ui ]
 
 jobs:
   build:
