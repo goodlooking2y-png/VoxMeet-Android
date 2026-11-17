@@ -31,11 +31,10 @@ https://developers.cloudflare.com/workers/ci-cd/builds/
 
 In Cloudflare Dashboard, open **Workers & Pages → voxmeet-token → Settings → Variables and Secrets**.
 
-Add the following values:
+The `FIREBASE_PROJECT_ID` text variable is already set to `voxmeet-a4332` in `wrangler.jsonc`. Add only these LiveKit values:
 
 | Name | Type | Value |
 |---|---|---|
-| `FIREBASE_PROJECT_ID` | Text | `voxmeet-a4332` |
 | `LIVEKIT_URL` | Secret or Text | Your LiveKit Cloud URL beginning with `wss://` |
 | `LIVEKIT_API_KEY` | Secret | LiveKit API key |
 | `LIVEKIT_API_SECRET` | Secret | LiveKit API secret |
