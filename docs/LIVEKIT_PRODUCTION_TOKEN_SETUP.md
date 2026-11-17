@@ -1,64 +1,30 @@
 # VoxMeet production LiveKit token service
 
-This service replaces the LiveKit Development Token Server. The Android app sends a Firebase Authentication ID token to the HTTPS function. The function verifies that token with Firebase Admin, uses the verified Firebase UID as the LiveKit participant identity, and returns a short-lived (10 minute) LiveKit token.
+The production token backend is now implemented as a Cloudflare Worker. It replaces the Firebase Cloud Functions approach so VoxMeet can use Cloudflare Workers Free instead of enabling Firebase Blaze billing.
 
-## Security model
+See the complete deployment guide:
 
-- The Android app never contains the LiveKit API key or API secret.
-- Only a signed-in Firebase user can request a room token.
-- Firebase ID tokens are verified server-side, including revocation checks.
-- The participant identity is always taken from the verified Firebase UID; the client cannot choose another identity.
-- Tokens are limited to one requested room and have a 10-minute lifetime.
-- New production rooms are created with a server-enforced 12-participant limit; full rooms are rejected before a token is issued.
-- The Android app uses a `voxmeet-prod-room-` namespace so older uncapped development rooms are not reused.
-- The token grants room join, audio/data publish and subscribe. It does not grant room administration.
-- Responses are marked `Cache-Control: no-store`.
+- [Cloudflare Worker README](../cloudflare/worker/README.md)
 
-## Required Firebase configuration
+## Current status
 
-The project is `voxmeet-a4332`. Enable Firebase Authentication Email/Password and Phone providers, and confirm both login flows work in the installed app.
+- Worker source: `cloudflare/worker/src/index.ts`
+- Worker name: `voxmeet-token`
+- Firebase project used for authentication: `voxmeet-a4332`
+- Production room capacity: 12 participants
+- Participant token lifetime: 10 minutes
+- Android endpoint: intentionally set to a placeholder until the actual Cloudflare workers.dev URL is known.
 
-Deploying Cloud Functions requires the Firebase project to be on the Blaze (pay-as-you-go) plan with billing enabled. Usage may remain within no-cost quotas, but billing must be enabled and Google Cloud usage should be monitored.
+## Before production testing
 
-Install Firebase CLI if needed, then from the repository root:
+1. Connect the GitHub repository to Cloudflare Workers Builds with root directory `cloudflare/worker` and production branch `production/livekit-token-backend`.
+2. Add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` in Cloudflare Worker Settings → Variables and Secrets. Keep API credentials as Secrets.
+3. Deploy the Worker and copy its exact `workers.dev` URL.
+4. Replace the placeholder `TOKEN_ENDPOINT_URL` in `overrides/LiveKitAudioManager.kt` with that URL.
+5. Build a new APK and test two different Firebase accounts on two phones.
 
-```bash
-npm --prefix functions install
-npm --prefix functions run build
-firebase login
-firebase use voxmeet-a4332
-```
+Do not merge this pull request or distribute its APK as a production build until the endpoint URL is configured, secrets are present, and the two-device test succeeds.
 
-Create the three Firebase-managed secrets. Run each command and enter the value in the secure prompt; do not put secrets in source files or GitHub commits:
+## Security note
 
-```bash
-firebase functions:secrets:set LIVEKIT_URL
-firebase functions:secrets:set LIVEKIT_API_KEY
-firebase functions:secrets:set LIVEKIT_API_SECRET
-```
-
-Use the LiveKit Cloud project's server URL (it must begin with `wss://`), API key and API secret. These are server-side credentials from LiveKit Cloud, not the Development Token Server ID.
-
-Deploy only this function:
-
-```bash
-firebase deploy --only functions:getLiveKitToken
-```
-
-The configured Android endpoint is:
-
-`https://us-central1-voxmeet-a4332.cloudfunctions.net/getLiveKitToken`
-
-## Validation before enabling the production build
-
-1. Confirm the function deploys successfully and its logs contain no configuration errors.
-2. Sign in on two separate test accounts and join the same room from both devices.
-3. Confirm an unauthenticated request receives HTTP 401.
-4. Confirm invalid room names receive HTTP 400.
-5. Confirm the issued token uses the authenticated Firebase UID and expires after 10 minutes.
-6. Verify microphone mute/unmute, participant disconnect/reconnect and room exit.
-7. Keep the existing tested build/branch available until this endpoint is deployed and the two-device production test passes.
-
-## Follow-up hardening still required
-
-Before public launch, add Firebase App Check enforcement, server-side room membership/visibility checks, server-enforced room capacity and host/moderator permissions, and abuse/rate limiting. This first production-token milestone secures token issuance; it does not by itself complete the entire voice-room moderation or account backend.
+The Worker verifies Firebase ID-token signatures and standard claims using Google's published JWKs. Unlike Firebase Admin SDK, this lightweight implementation does not currently perform immediate revoked-token or disabled-account checks. See the Worker README for details and remaining launch hardening.
