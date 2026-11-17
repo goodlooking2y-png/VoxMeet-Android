@@ -19,7 +19,7 @@ This service makes a small number of HTTPS calls to Firebase's public signing-ke
    - Worker name: `voxmeet-token` (must match `wrangler.jsonc`)
    - Production branch: `production/livekit-token-backend`
    - Root directory: `cloudflare/worker`
-   - Build command: leave blank (Wrangler bundles the TypeScript entry point)
+   - Build command: `npm install --no-audit --no-fund`
    - Deploy command: `npx wrangler deploy`
 6. Save and deploy. Cloudflare will assign a URL similar to:
    `https://voxmeet-token.<your-workers-subdomain>.workers.dev`
