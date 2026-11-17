@@ -79,7 +79,7 @@ fun VoxMeetApp() {
         scope.launch {
             try {
                 audioStatus = "LiveKit-এ সংযোগ হচ্ছে..."
-                val stableRoomName = "voxmeet-room-${selectedRoom.title.hashCode().toUInt().toString(16)}"
+                val stableRoomName = "voxmeet-prod-room-${selectedRoom.title.hashCode().toUInt().toString(16)}"
                 val participantName = "Guest-${UUID.randomUUID().toString().take(8)}"
                 audioManager.joinRoom(stableRoomName, participantName)
                 audioManager.setMicrophoneEnabled(false)
