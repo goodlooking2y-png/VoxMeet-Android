@@ -1,0 +1,17 @@
+{
+  "name": "voxmeet-cloudflare-token",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0",
+    "typescript": "^5.9.3"
+  }
+}

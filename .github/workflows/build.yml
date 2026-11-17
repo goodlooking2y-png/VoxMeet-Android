@@ -3,7 +3,9 @@ name: Build VoxMeet APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main, work/bigo-live-ui ]
+    branches: [ main, work/bigo-live-ui, production/livekit-token-backend ]
+  pull_request:
+    branches: [ work/bigo-live-ui ]
 
 jobs:
   build:
@@ -132,7 +134,17 @@ jobs:
 
       - name: Build APK
         working-directory: VoxMeet
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          for attempt in 1 2 3; do
+            if gradle --no-daemon --max-workers=2 :app:assembleDebug; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle dependency/build attempt $attempt failed; retrying after backoff."
+              sleep $((attempt * 30))
+            fi
+          done
+          exit 1
 
       - name: Export APK signing certificate fingerprints
         working-directory: VoxMeet

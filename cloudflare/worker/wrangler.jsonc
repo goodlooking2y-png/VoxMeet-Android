@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "voxmeet-token",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-17",
+  "vars": {
+    "FIREBASE_PROJECT_ID": "voxmeet-a4332"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
