@@ -9,6 +9,8 @@ This service replaces the LiveKit Development Token Server. The Android app send
 - Firebase ID tokens are verified server-side, including revocation checks.
 - The participant identity is always taken from the verified Firebase UID; the client cannot choose another identity.
 - Tokens are limited to one requested room and have a 10-minute lifetime.
+- New production rooms are created with a server-enforced 12-participant limit; full rooms are rejected before a token is issued.
+- The Android app uses a `voxmeet-prod-room-` namespace so older uncapped development rooms are not reused.
 - The token grants room join, audio/data publish and subscribe. It does not grant room administration.
 - Responses are marked `Cache-Control: no-store`.
 
