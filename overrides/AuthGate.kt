@@ -36,21 +36,34 @@ private val AuthVioletColor = Color(0xFF9167FF)
 private val AuthMutedColor = Color(0xFFB9B2C9)
 private val AuthErrorColor = Color(0xFFFF8C9D)
 
+private data class AuthGateState(
+    val user: FirebaseUser?,
+    val emailVerified: Boolean
+)
+
 @Composable
 fun VoxMeetAuthGate(content: @Composable () -> Unit) {
     val auth = remember { FirebaseAuth.getInstance() }
-    var user by remember { mutableStateOf(auth.currentUser) }
+    var gateState by remember {
+        val currentUser = auth.currentUser
+        mutableStateOf(AuthGateState(currentUser, currentUser?.isEmailVerified == true))
+    }
     DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { user = it.currentUser }
+        val listener = FirebaseAuth.AuthStateListener {
+            val currentUser = it.currentUser
+            gateState = AuthGateState(currentUser, currentUser?.isEmailVerified == true)
+        }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
-    val currentUser = user
+    val currentUser = gateState.user
     when {
         currentUser == null -> VoxMeetAuthScreen(auth)
-        currentUser.isEmailVerified || !currentUser.phoneNumber.isNullOrBlank() -> content()
+        gateState.emailVerified || !currentUser.phoneNumber.isNullOrBlank() -> content()
         else -> EmailVerificationScreen(auth, currentUser) { refreshedUser ->
-            user = refreshedUser
+            // Firebase reload() may update the existing FirebaseUser instance in place.
+            // Store the verification flag separately so Compose observes the change.
+            gateState = AuthGateState(refreshedUser, refreshedUser.isEmailVerified)
         }
     }
 }
