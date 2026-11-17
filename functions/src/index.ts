@@ -2,13 +2,14 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 
 initializeApp();
 
 const livekitUrl = defineSecret("LIVEKIT_URL");
 const livekitApiKey = defineSecret("LIVEKIT_API_KEY");
 const livekitApiSecret = defineSecret("LIVEKIT_API_SECRET");
+const MAX_ROOM_PARTICIPANTS = 12;
 
 type TokenRequestBody = {
   room_name?: unknown;
@@ -82,6 +83,38 @@ export const getLiveKitToken = onRequest(
     }
 
     try {
+      // Create every production room with a server-enforced 12-participant cap.
+      // New production room names use the voxmeet-prod-room- prefix so an older
+      // uncapped development room cannot silently bypass this setting.
+      const roomService = new RoomServiceClient(
+        serverUrl.replace(/^wss:/, "https:"),
+        apiKey,
+        apiSecret,
+      );
+      let room = (await roomService.listRooms([roomName]))[0];
+      if (!room) {
+        try {
+          room = await roomService.createRoom({
+            name: roomName,
+            maxParticipants: MAX_ROOM_PARTICIPANTS,
+            emptyTimeout: 300,
+          });
+        } catch (createError) {
+          // Another token request may have created this room at the same time.
+          const racedRoom = (await roomService.listRooms([roomName]))[0];
+          if (!racedRoom) throw createError;
+          room = racedRoom;
+        }
+      }
+      if (room.maxParticipants !== MAX_ROOM_PARTICIPANTS) {
+        res.status(409).json({ error: "This room is not configured for production capacity" });
+        return;
+      }
+      if (room.numParticipants >= MAX_ROOM_PARTICIPANTS) {
+        res.status(409).json({ error: "This voice room is full" });
+        return;
+      }
+
       // Identity always comes from the verified Firebase user. A client cannot
       // mint a token for another identity by changing participant_identity.
       const participantName =
