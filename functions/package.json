@@ -2,7 +2,7 @@
   "name": "voxmeet-functions",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "firebase-admin": "^13.0.2",
-    "firebase-functions": "^6.3.2",
+    "firebase-functions": "^7.0.0",
     "livekit-server-sdk": "^2.13.3"
   },
   "devDependencies": {
