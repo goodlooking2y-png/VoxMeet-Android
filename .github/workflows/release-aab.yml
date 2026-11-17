@@ -1,0 +1,187 @@
+name: VoxMeet Signed Release AAB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-aab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout VoxMeet
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Check signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.VOXMEET_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.VOXMEET_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOXMEET_KEY_ALIAS }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "Missing GitHub secret: VOXMEET_KEYSTORE_BASE64"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "Missing GitHub secret: VOXMEET_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "Missing GitHub secret: VOXMEET_KEY_ALIAS"; exit 1; }
+
+      - name: Decode upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.VOXMEET_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/voxmeet-signing"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/voxmeet-signing/voxmeet-upload.jks"
+          test -s "$RUNNER_TEMP/voxmeet-signing/voxmeet-upload.jks"
+          chmod 600 "$RUNNER_TEMP/voxmeet-signing/voxmeet-upload.jks"
+
+      - name: Extract source and apply VoxMeet integrations
+        run: |
+          unzip -q VoxMeet-mobile-cloud-build.zip
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+          cp overrides/LiveKitAudioManager.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LiveKitAudioManager.kt
+          cp overrides/AuthGate.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/AuthGate.kt
+          cp firebase/google-services.json VoxMeet/app/google-services.json
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle = Path("VoxMeet/app/build.gradle.kts")
+          s = gradle.read_text()
+          google_plugin = '    id("com.google.gms.google-services")'
+          if google_plugin not in s:
+              s = s.replace('    id("org.jetbrains.kotlin.plugin.compose")', '    id("org.jetbrains.kotlin.plugin.compose")\\n' + google_plugin, 1)
+          firebase_bom = '    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))'
+          firebase_auth = '    implementation("com.google.firebase:firebase-auth")'
+          if firebase_bom not in s:
+              s = s.replace("dependencies {", "dependencies {" + chr(10) + firebase_bom + chr(10) + firebase_auth, 1)
+          root_gradle = Path("VoxMeet/build.gradle.kts")
+          root_s = root_gradle.read_text()
+          root_plugin = '    id("com.google.gms.google-services") version "4.4.2" apply false'
+          if root_plugin not in root_s:
+              root_s = root_s.replace('    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false', '    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false\\n' + root_plugin, 1)
+          root_gradle.write_text(root_s)
+          dep = '    implementation("io.livekit:livekit-android:2.30.0")'
+          if dep not in s:
+              s = s.replace("dependencies {", "dependencies {" + chr(10) + dep, 1)
+          gradle.write_text(s)
+          settings_candidates = [Path("VoxMeet/settings.gradle.kts"), Path("VoxMeet/settings.gradle")]
+          settings = next((p for p in settings_candidates if p.is_file()), None)
+          if settings is None:
+              raise SystemExit("Could not find VoxMeet/settings.gradle(.kts)")
+          cfg = settings.read_text()
+          if "jitpack.io" not in cfg:
+              start = cfg.find("dependencyResolutionManagement")
+              if start < 0:
+                  raise SystemExit("Could not find dependencyResolutionManagement block")
+              repo_start = cfg.find("repositories {", start)
+              if repo_start < 0:
+                  raise SystemExit("Could not find dependency repositories block")
+              insert_at = repo_start + len("repositories {")
+              addition = chr(10) + ('        maven("https://jitpack.io")' if settings.suffix == ".kts" else "        maven { url 'https://jitpack.io' }")
+              cfg = cfg[:insert_at] + addition + cfg[insert_at:]
+              settings.write_text(cfg)
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          candidates = [Path("VoxMeet/app/build.gradle"), Path("VoxMeet/app/build.gradle.kts")]
+          build_file = next((p for p in candidates if p.is_file()), None)
+          if build_file is None:
+              raise SystemExit("Could not find app Gradle build file")
+          s = build_file.read_text()
+          if build_file.suffix == ".kts":
+              patch = """
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions.jvmTarget = "17"
+          }
+          """
+          else:
+              patch = """
+          android {
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+              kotlinOptions.jvmTarget = '17'
+          }
+          """
+          build_file.write_text(s.rstrip() + "\\n" + patch)
+          PY
+
+      - name: Create temporary Gradle signing configuration
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.VOXMEET_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.VOXMEET_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOXMEET_KEY_ALIAS }}
+        working-directory: VoxMeet
+        run: |
+          cat > "$RUNNER_TEMP/voxmeet-signing/signing.init.gradle" <<'EOF'
+          allprojects { p ->
+              p.plugins.withId("com.android.application") {
+                  def androidExt = p.extensions.getByName("android")
+                  def releaseConfig = androidExt.signingConfigs.findByName("release")
+                  if (releaseConfig == null) {
+                      releaseConfig = androidExt.signingConfigs.create("release")
+                  }
+                  releaseConfig.storeFile = new File(System.getenv("KEYSTORE_FILE"))
+                  releaseConfig.storePassword = System.getenv("KEYSTORE_PASSWORD")
+                  releaseConfig.keyAlias = System.getenv("KEY_ALIAS")
+                  releaseConfig.keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
+                  androidExt.buildTypes.getByName("release").signingConfig = releaseConfig
+              }
+          }
+          EOF
+          echo "Temporary signing configuration prepared."
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/voxmeet-signing/voxmeet-upload.jks
+
+      - name: Build signed release AAB
+        working-directory: VoxMeet
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/voxmeet-signing/voxmeet-upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.VOXMEET_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.VOXMEET_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOXMEET_KEY_ALIAS }}
+        run: |
+          gradle --no-daemon -I "$RUNNER_TEMP/voxmeet-signing/signing.init.gradle" :app:bundleRelease
+
+      - name: Verify AAB and signing certificate
+        working-directory: VoxMeet
+        run: |
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' | head -n 1)"
+          test -n "$AAB" || { echo "Release AAB was not produced"; exit 1; }
+          jarsigner -verify "$AAB"
+          mkdir -p release-info
+          keytool -printcert -jarfile "$AAB" > release-info/aab-signing-certificate.txt
+          echo "Verified release bundle: $AAB"
+
+      - name: Upload signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxMeet-Signed-Release-AAB
+          path: VoxMeet/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload signing certificate details
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxMeet-Release-Certificate
+          path: VoxMeet/release-info/aab-signing-certificate.txt
+          if-no-files-found: error
+          retention-days: 30
