@@ -1,5 +1,9 @@
 name: Cloudflare Worker Check
 
+concurrency:
+  group: voxmeet-worker-check-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ production/livekit-token-backend ]
