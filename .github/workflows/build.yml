@@ -3,7 +3,7 @@ name: Build VoxMeet APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main, work/bigo-live-ui ]
+    branches: [ main, work/bigo-live-ui, production/livekit-token-backend ]
   pull_request:
     branches: [ work/bigo-live-ui ]
 
