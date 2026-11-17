@@ -75,7 +75,7 @@ async function signLiveKitJwt(
   name?: string,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  let token = new SignJWT({ video: videoGrant })
+  let token = new SignJWT({ video: videoGrant, ...(name ? { name } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuer(apiKey)
     .setSubject(subject)
@@ -83,7 +83,6 @@ async function signLiveKitJwt(
     .setNotBefore(now - 5)
     .setExpirationTime(now + ttlSeconds);
 
-  if (name) token = token.setClaim("name", name);
   return token.sign(encoder.encode(apiSecret));
 }
 
