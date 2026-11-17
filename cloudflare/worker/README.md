@@ -53,6 +53,10 @@ After the Worker is deployed, copy its exact `workers.dev` URL. The Android sour
 
 Then rebuild the Android APK. Do not install or test a production APK with a placeholder or the old Firebase Functions URL.
 
+## Quick deployment check
+
+After deployment, open `https://voxmeet-token.<your-workers-subdomain>.workers.dev/health`. A successful deployment returns `{"service":"voxmeet-token","status":"ok"}`. This health check does not verify LiveKit secrets; complete the authenticated two-device test as well.
+
 ## Security behavior
 
 - Verifies Firebase Authentication ID-token signature using Google's published secure-token JWKs, and checks issuer, audience, expiry, and subject.
