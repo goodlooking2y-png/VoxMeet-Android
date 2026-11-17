@@ -171,6 +171,9 @@ export default {
       return json({ error: "Content-Type must be application/json" }, 415);
     }
 
+    const contentLength = Number(request.headers.get("Content-Length") ?? "0");
+    if (contentLength > 4096) return json({ error: "Request body is too large" }, 413);
+
     const authorizationToken = getBearerToken(request);
     if (!authorizationToken) {
       return json({ error: "Authentication required" }, 401);
@@ -195,6 +198,10 @@ export default {
       body = JSON.parse(rawBody) as TokenRequestBody;
     } catch {
       return json({ error: "A valid JSON request body is required" }, 400);
+    }
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json({ error: "A JSON object request body is required" }, 400);
     }
 
     const roomName = typeof body.room_name === "string" ? body.room_name.trim() : "";
