@@ -162,6 +162,11 @@ async function ensureProductionRoom(
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const requestUrl = new URL(request.url);
+    if (request.method === "GET" && requestUrl.pathname === "/health") {
+      return json({ service: "voxmeet-token", status: "ok" });
+    }
+
     if (request.method !== "POST") {
       return json({ error: "Method not allowed" }, 405);
     }
