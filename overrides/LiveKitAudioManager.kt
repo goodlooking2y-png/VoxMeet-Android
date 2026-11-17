@@ -1,6 +1,8 @@
 package com.rakib.voxmeet
 
 import android.content.Context
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import io.livekit.android.LiveKit
 import io.livekit.android.room.Room
 import io.livekit.android.events.RoomEvent
@@ -17,6 +19,9 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class RoomParticipant(
     val name: String,
@@ -26,14 +31,11 @@ data class RoomParticipant(
 /**
  * LiveKit audio transport for VoxMeet.
  *
- * The Development Token Server is enabled only for early testing.
- * Replace it with VoxMeet's authenticated backend token endpoint before production.
+ * Production credentials are requested from the authenticated VoxMeet token endpoint.
+ * The Firebase ID token is sent only over HTTPS; LiveKit API secrets never ship in the app.
  */
 class LiveKitAudioManager(context: Context) {
     private val room: Room = LiveKit.create(context.applicationContext)
-    private val tokenSource = TokenSource
-        .fromDevelopmentTokenServer(DEV_TOKEN_SERVER_ID)
-        .cached()
 
     @Volatile
     private var connected = false
@@ -84,6 +86,18 @@ class LiveKitAudioManager(context: Context) {
         mutableParticipants.value = emptyList()
         mutableMessages.value = emptyList()
 
+        // A fresh Firebase ID token is obtained for each join attempt. Firebase refreshes
+        // expired ID tokens automatically; the backend verifies this token before issuing
+        // a short-lived LiveKit participant token.
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+            ?: throw IllegalStateException("Please sign in to join a VoxMeet room")
+        val firebaseIdToken = firebaseUser.awaitIdToken()
+
+        val tokenSource = TokenSource.fromEndpoint(
+            url = TOKEN_ENDPOINT_URL,
+            headers = mapOf("Authorization" to "Bearer $firebaseIdToken"),
+        ).cached()
+
         val credentials = tokenSource.fetch(
             TokenRequestOptions(
                 roomName = roomName.trim(),
@@ -104,7 +118,7 @@ class LiveKitAudioManager(context: Context) {
                     is RoomEvent.DataReceived -> {
                         // Ignore unrelated room data; VoxMeet chat uses its own topic.
                         if (event.topic == CHAT_TOPIC) {
-                            val parts = event.data.toString(Charsets.UTF_8).split("\t", limit = 2)
+                            val parts = event.data.toString(Charsets.UTF_8).split("\\t", limit = 2)
                             if (parts.size == 2) {
                                 val line = "${parts[0]}: ${parts[1]}"
                                 mutableMessages.value = (mutableMessages.value + line).takeLast(MAX_CHAT_MESSAGES)
@@ -147,7 +161,7 @@ class LiveKitAudioManager(context: Context) {
         require(clean.isNotEmpty()) { "Message cannot be empty" }
 
         val sender = room.localParticipant.name ?: "You"
-        val payload = "$sender\t$clean".toByteArray(Charsets.UTF_8)
+        val payload = "$sender\\t$clean".toByteArray(Charsets.UTF_8)
         room.localParticipant.publishData(
             payload,
             reliability = DataPublishReliability.RELIABLE,
@@ -173,9 +187,39 @@ class LiveKitAudioManager(context: Context) {
     }
 
     companion object {
-        private const val DEV_TOKEN_SERVER_ID = "voxmeetapk-gsvob5"
+        // Firebase Functions endpoint for Firebase project voxmeet-a4332.
+        // Deploy functions:getLiveKitToken in us-central1 before installing this build.
+        private const val TOKEN_ENDPOINT_URL =
+            "https://us-central1-voxmeet-a4332.cloudfunctions.net/getLiveKitToken"
         private const val CHAT_TOPIC = "voxmeet-chat"
         private const val MAX_ROOM_PARTICIPANTS = 12
         private const val MAX_CHAT_MESSAGES = 100
     }
 }
+
+private suspend fun FirebaseUser.awaitIdToken(): String =
+    suspendCancellableCoroutine { continuation ->
+        getIdToken(false)
+            .addOnSuccessListener { result ->
+                val token = result.token
+                if (token.isNullOrBlank()) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(
+                            IllegalStateException("Firebase returned an empty ID token")
+                        )
+                    }
+                } else if (continuation.isActive) {
+                    continuation.resume(token)
+                }
+            }
+            .addOnFailureListener { error ->
+                if (continuation.isActive) {
+                    continuation.resumeWithException(error)
+                }
+            }
+            .addOnCanceledListener {
+                if (continuation.isActive) {
+                    continuation.cancel()
+                }
+            }
+    }
