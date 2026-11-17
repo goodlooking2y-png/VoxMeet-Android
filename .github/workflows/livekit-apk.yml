@@ -1,0 +1,120 @@
+name: Build VoxMeet Live Voice APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-livekit-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract app source and apply VoxMeet integrations
+        run: |
+          unzip -q VoxMeet-mobile-cloud-build.zip
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+          cp overrides/LiveKitAudioManager.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LiveKitAudioManager.kt
+          cp overrides/AuthGate.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/AuthGate.kt
+          cp firebase/google-services.json VoxMeet/app/google-services.json
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("VoxMeet")
+          app_gradle = root / "app/build.gradle.kts"
+          s = app_gradle.read_text()
+          google_plugin = '    id("com.google.gms.google-services")'
+          if google_plugin not in s:
+              marker = '    id("org.jetbrains.kotlin.plugin.compose")'
+              if marker not in s:
+                  raise SystemExit("Could not find Kotlin Compose plugin line in app/build.gradle.kts")
+              s = s.replace(marker, marker + "\\n" + google_plugin, 1)
+
+          deps = [
+              '    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))',
+              '    implementation("com.google.firebase:firebase-auth")',
+              '    implementation("io.livekit:livekit-android:2.30.0")',
+          ]
+          for dep in deps:
+              if dep not in s:
+                  s = s.replace("dependencies {", "dependencies {\\n" + dep, 1)
+          app_gradle.write_text(s)
+
+          root_gradle = root / "build.gradle.kts"
+          rs = root_gradle.read_text()
+          plugin = '    id("com.google.gms.google-services") version "4.4.2" apply false'
+          if plugin not in rs:
+              marker = '    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false'
+              if marker not in rs:
+                  raise SystemExit("Could not find Kotlin Compose plugin version in root build.gradle.kts")
+              rs = rs.replace(marker, marker + "\\n" + plugin, 1)
+          root_gradle.write_text(rs)
+
+          settings = root / "settings.gradle.kts"
+          cfg = settings.read_text()
+          if "jitpack.io" not in cfg:
+              start = cfg.find("dependencyResolutionManagement")
+              repo_start = cfg.find("repositories {", start)
+              if start < 0 or repo_start < 0:
+                  raise SystemExit("Could not find dependencyResolutionManagement repositories block")
+              pos = repo_start + len("repositories {")
+              cfg = cfg[:pos] + '\\n        maven("https://jitpack.io")' + cfg[pos:]
+              settings.write_text(cfg)
+
+          manifest = root / "app/src/main/AndroidManifest.xml"
+          xml = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
+          if permission not in xml:
+              xml = xml.replace("<application", permission + "\\n    <application", 1)
+              manifest.write_text(xml)
+
+          print("LiveKit, Firebase Auth, microphone permission and source overrides applied.")
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("VoxMeet/app/build.gradle.kts")
+          s = p.read_text()
+          patch = """
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions.jvmTarget = "17"
+          }
+          """
+          p.write_text(s.rstrip() + "\\n" + patch)
+          PY
+
+      - name: Build debug APK
+        working-directory: VoxMeet
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxMeet-LiveKit-Debug-APK
+          path: VoxMeet/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
