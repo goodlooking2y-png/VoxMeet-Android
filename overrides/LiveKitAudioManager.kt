@@ -187,10 +187,10 @@ class LiveKitAudioManager(context: Context) {
     }
 
     companion object {
-        // Firebase Functions endpoint for Firebase project voxmeet-a4332.
-        // Deploy functions:getLiveKitToken in us-central1 before installing this build.
+        // Replace the placeholder with the exact workers.dev URL after Cloudflare deploys the Worker.
+        // Do not ship a production build until this URL is configured and the endpoint is tested.
         private const val TOKEN_ENDPOINT_URL =
-            "https://us-central1-voxmeet-a4332.cloudfunctions.net/getLiveKitToken"
+            "https://voxmeet-token.YOUR-CLOUDFLARE-SUBDOMAIN.workers.dev"
         private const val CHAT_TOPIC = "voxmeet-chat"
         private const val MAX_ROOM_PARTICIPANTS = 12
         private const val MAX_CHAT_MESSAGES = 100
