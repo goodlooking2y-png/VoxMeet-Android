@@ -11,6 +11,7 @@
     "jose": "^6.1.0"
   },
   "devDependencies": {
-    "wrangler": "^4.45.0"
+    "wrangler": "^4.45.0",
+    "typescript": "^5.9.3"
   }
 }
