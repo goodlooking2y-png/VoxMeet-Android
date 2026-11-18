@@ -42,6 +42,30 @@ jobs:
               raise SystemExit("Could not find app/build.gradle or app/build.gradle.kts")
           print(f"Patching {build_file}")
           original = build_file.read_text()
+
+          # The replacement UI uses Firebase Authentication and LiveKit.
+          # Add the SDKs to the extracted app module before Kotlin compilation.
+          import re
+          if "com.google.firebase:firebase-auth" not in original:
+              match = re.search(r"dependencies\\s*\\{", original)
+              if not match:
+                  raise SystemExit("Could not find dependencies block in app Gradle file")
+              if build_file.suffix == ".kts":
+                  deps = '''
+              implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
+              implementation("com.google.firebase:firebase-auth")
+              implementation("io.livekit:livekit-android:2.30.0")
+          '''
+              else:
+                  deps = '''
+              implementation platform("com.google.firebase:firebase-bom:34.5.0")
+              implementation "com.google.firebase:firebase-auth"
+              implementation "io.livekit:livekit-android:2.30.0"
+          '''
+              pos = match.end()
+              original = original[:pos] + "\\n" + deps + original[pos:]
+              print("Added Firebase Auth and LiveKit dependencies")
+
           if build_file.suffix == ".kts":
               patch = """
           
