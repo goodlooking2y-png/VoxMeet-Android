@@ -23,6 +23,29 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Configure Maven repositories
+        working-directory: VoxMeet
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = next((p for p in (Path("settings.gradle.kts"), Path("settings.gradle")) if p.is_file()), None)
+          if settings is None:
+              raise SystemExit("Could not find settings.gradle(.kts)")
+          source = settings.read_text()
+          if "https://jitpack.io" not in source:
+              pattern = r"(dependencyResolutionManagement\\s*\\{[\\s\\S]*?repositories\\s*\\{)"
+              match = re.search(pattern, source)
+              if match:
+                  addition = '\\n        maven { url = uri("https://jitpack.io") }' if settings.suffix == ".kts" else '\\n        maven { url "https://jitpack.io" }'
+                  source = source[:match.end()] + addition + source[match.end():]
+              else:
+                  raise SystemExit("Could not locate dependencyResolutionManagement.repositories in settings file")
+              settings.write_text(source)
+          print("JitPack repository configured in", settings)
+          PY
+
       - name: Apply VoxMeet Premium Blue UI and required app components
         run: |
           mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
