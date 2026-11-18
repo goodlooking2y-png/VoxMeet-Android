@@ -35,23 +35,30 @@ jobs:
               raise SystemExit("Could not find settings.gradle(.kts)")
           source = settings.read_text()
           if "https://jitpack.io" not in source:
-              pattern = r"dependencyResolutionManagement\s*\{[\s\S]*?repositories\s*\{"
-              match = re.search(pattern, source)
-              if match:
-                  insert = 'maven { url = uri("https://jitpack.io") }' if settings.suffix == ".kts" else 'maven { url "https://jitpack.io" }'
-                  source = source[:match.end()] + "\n        " + insert + source[match.end():]
+              if settings.suffix == ".kts":
+                  repo_line = '        maven { url = uri("https://jitpack.io") }'
               else:
-                  addition = (
-                      chr(10) + chr(10) +
+                  repo_line = '        maven { url "https://jitpack.io" }'
+
+              pattern = r"(dependencyResolutionManagement\\s*\\{\\s*repositories\\s*\\{)"
+              if re.search(pattern, source):
+                  source = re.sub(
+                      pattern,
+                      lambda match: match.group(1) + "\\n" + repo_line + "\\n",
+                      source,
+                      count=1
+                  )
+              else:
+                  block = (
                       "dependencyResolutionManagement {" + chr(10) +
                       "    repositories {" + chr(10) +
+                      repo_line + chr(10) +
                       "        google()" + chr(10) +
                       "        mavenCentral()" + chr(10) +
-                      '        maven { url = uri("https://jitpack.io") }' + chr(10) +
                       "    }" + chr(10) +
                       "}" + chr(10)
                   )
-                  source += addition
+                  source = source.rstrip() + chr(10) + chr(10) + block
               settings.write_text(source)
           print("JitPack repository configured in", settings)
           PY
