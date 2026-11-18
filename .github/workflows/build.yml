@@ -40,11 +40,11 @@ jobs:
               else:
                   repo_line = '        maven { url "https://jitpack.io" }'
 
-              pattern = r"(dependencyResolutionManagement\\s*\\{\\s*repositories\\s*\\{)"
+              pattern = r"(dependencyResolutionManagement\s*\{\s*repositories\s*\{)"
               if re.search(pattern, source):
                   source = re.sub(
                       pattern,
-                      lambda match: match.group(1) + "\\n" + repo_line + "\\n",
+                      lambda match: match.group(1) + chr(10) + repo_line + chr(10),
                       source,
                       count=1
                   )
