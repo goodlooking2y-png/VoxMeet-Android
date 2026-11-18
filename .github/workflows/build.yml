@@ -43,7 +43,7 @@ jobs:
           print(f"Patching {build_file}")
           original = build_file.read_text()
 
-          # The replacement UI uses Firebase Authentication and LiveKit.
+          # The replacement UI uses Firebase Authentication and LiveKit SDKs (injected before compile).
           # Add the SDKs to the extracted app module before Kotlin compilation.
           import re
           if "com.google.firebase:firebase-auth" not in original:
