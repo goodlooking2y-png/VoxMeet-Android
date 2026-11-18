@@ -33,13 +33,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 
-private val Ink = Color(0xFF100D20)
-private val Panel = Color(0xFF211A35)
-private val Panel2 = Color(0xFF2B2144)
-private val Pink = Color(0xFFFF4D91)
-private val Violet = Color(0xFF9167FF)
-private val Aqua = Color(0xFF53E0D0)
-private val Muted = Color(0xFFB9B2C9)
+// VoxMeet Premium Blue visual system
+private val Ink = Color(0xFF071426)
+private val Panel = Color(0xFF10233D)
+private val Panel2 = Color(0xFF183657)
+private val Pink = Color(0xFF4DA3FF)
+private val Violet = Color(0xFF1769E0)
+private val Aqua = Color(0xFF42D6C5)
+private val Muted = Color(0xFFA9BCD2)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -180,7 +181,7 @@ fun VoxMeetApp() {
                         )
                     },
                     bottomBar = {
-                        NavigationBar(containerColor = Color(0xFF191428), contentColor = Color.White) {
+                        NavigationBar(containerColor = Color(0xFF0B1B30), contentColor = Color.White) {
                             NavigationBarItem(selectedTab == 0, { selectedTab = 0 }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Home") })
                             NavigationBarItem(selectedTab == 1, { selectedTab = 1 }, icon = { Icon(Icons.Default.Explore, null) }, label = { Text("Discover") })
                             NavigationBarItem(selectedTab == 2, { selectedTab = 2 }, icon = { Icon(Icons.Default.MailOutline, null) }, label = { Text("Messages") })
@@ -242,19 +243,19 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
         item {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF8D3F9F), Color(0xFF57318C), Color(0xFF29204D))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1769E0), Color(0xFF124FAD), Color(0xFF0B2B50))))
                     .clickable { onGoLive() }.padding(17.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("YOUR VOICE, YOUR STAGE", color = Color(0xFFFFC8E0), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
+                    Text("YOUR VOICE, YOUR STAGE", color = Color(0xFFD9ECFF), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
                     Text("Your stage is waiting", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Go live, meet new people and share your vibe", color = Color(0xFFE9DDF5), fontSize = 11.sp)
+                    Text("Go live, meet new people and share your vibe", color = Color(0xFFE0EEFF), fontSize = 11.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("＋  START LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
                             modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 13.dp, vertical = 8.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("শুরু করো", color = Color(0xFFE9DDF5), fontSize = 10.sp)
+                        Text("শুরু করো", color = Color(0xFFE0EEFF), fontSize = 10.sp)
                     }
                 }
                 Box(Modifier.size(66.dp).clip(CircleShape).background(Color.White.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
@@ -367,7 +368,7 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(15.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF713E91), Color(0xFF282044), Color(0xFFB34D83))))) {
+                .background(Brush.linearGradient(listOf(Color(0xFF155DBB), Color(0xFF112B49), Color(0xFF247ED1))))) {
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .16f), Color.Transparent, Color.Black.copy(alpha = .12f)))))
                 Icon(Icons.Default.Groups, null, tint = Color.White.copy(alpha = .20f), modifier = Modifier.align(Alignment.Center).size(88.dp))
                 Text("● LIVE NOW", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
@@ -412,7 +413,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
     var chatText by remember { mutableStateOf("") }
 
     Column(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF32204E), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF173454), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("←  Back", color = Color.White, modifier = Modifier.clickable { onLeave() })
@@ -445,7 +446,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                         ) {
                             Box(
                                 Modifier.size(48.dp).clip(CircleShape)
-                                    .background(if (occupant == null) Color(0xFF39304F) else if (occupant.isLocal) Violet else Color(0xFF3B345B)),
+                                    .background(if (occupant == null) Color(0xFF244361) else if (occupant.isLocal) Violet else Color(0xFF284A6B)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (occupant == null) {
@@ -695,7 +696,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
             items(chats.filter { it.first.contains(query, true) || it.second.contains(query, true) }) { chat ->
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF28203D))))
+                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF102943))))
                         .clickable { selectedMessage = chat.first }.padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -760,7 +761,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF643B91), Color(0xFF292044), Color(0xFF9A477D))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1B66B8), Color(0xFF0D2D4E), Color(0xFF2879C8))))
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -769,7 +770,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text(profileBio, color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Text(profileBio, color = Color(0xFFE0EEFF), fontSize = 11.sp)
                 Spacer(Modifier.height(15.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     ProfileMetric("0", "Following")
