@@ -23,6 +23,11 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Apply VoxMeet Premium Blue UI
+        run: |
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+
       - name: Set Java and Kotlin targets in the Android app module
         working-directory: VoxMeet
         run: |
