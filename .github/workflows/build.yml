@@ -41,10 +41,17 @@ jobs:
                   insert = 'maven { url = uri("https://jitpack.io") }' if settings.suffix == ".kts" else 'maven { url "https://jitpack.io" }'
                   source = source[:match.end()] + "\n        " + insert + source[match.end():]
               else:
-                  if settings.suffix == ".kts":
-                      source += '\n\ndependencyResolutionManagement {\n    repositories {\n        google()\n        mavenCentral()\n        maven { url "https://jitpack.io" }\n    }\n}\n'
-                  else:
-                      source += '\n\ndependencyResolutionManagement {\n    repositories {\n        google()\n        mavenCentral()\n        maven { url "https://jitpack.io" }\n    }\n}\n'
+                  addition = (
+                      chr(10) + chr(10) +
+                      "dependencyResolutionManagement {" + chr(10) +
+                      "    repositories {" + chr(10) +
+                      "        google()" + chr(10) +
+                      "        mavenCentral()" + chr(10) +
+                      '        maven { url = uri("https://jitpack.io") }' + chr(10) +
+                      "    }" + chr(10) +
+                      "}" + chr(10)
+                  )
+                  source += addition
               settings.write_text(source)
           print("JitPack repository configured in", settings)
           PY
