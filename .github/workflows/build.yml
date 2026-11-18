@@ -47,7 +47,7 @@ jobs:
           # Add the SDKs to the extracted app module before Kotlin compilation.
           import re
           if "com.google.firebase:firebase-auth" not in original:
-              match = re.search(r"dependencies\\s*\\{", original)
+              match = re.search(r"dependencies\s*\{", original)
               if not match:
                   raise SystemExit("Could not find dependencies block in app Gradle file")
               if build_file.suffix == ".kts":
@@ -63,7 +63,7 @@ jobs:
               implementation "io.livekit:livekit-android:2.30.0"
           '''
               pos = match.end()
-              original = original[:pos] + "\\n" + deps + original[pos:]
+              original = original[:pos] + "\n" + deps + original[pos:]
               print("Added Firebase Auth and LiveKit dependencies")
 
           if build_file.suffix == ".kts":
