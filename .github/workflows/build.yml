@@ -23,6 +23,39 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Apply selected VoxMeet launcher icon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import re
+
+          root = Path("VoxMeet/app/src/main")
+          if not root.is_dir():
+              raise SystemExit("Android app source directory was not found")
+          icon_data = base64.b64decode(Path("overrides/voxmeet-icon.b64").read_text().strip())
+          manifests = list(root.rglob("AndroidManifest.xml"))
+          if not manifests:
+              raise SystemExit("AndroidManifest.xml was not found")
+          for manifest in manifests:
+              source = manifest.read_text()
+              source = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', source)
+              source = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@mipmap/ic_launcher"', source)
+              manifest.write_text(source)
+          res = root / "res"
+          for folder in res.glob("mipmap-*"):
+              if folder.is_dir():
+                  for old in folder.glob("ic_launcher.*"):
+                      old.unlink()
+                  for old in folder.glob("ic_launcher_round.*"):
+                      old.unlink()
+          for density in ("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"):
+              folder = res / f"mipmap-{density}"
+              folder.mkdir(parents=True, exist_ok=True)
+              (folder / "ic_launcher.jpg").write_bytes(icon_data)
+          print("Installed premium blue VoxMeet launcher icon in all Android densities")
+          PY
+
       - name: Configure Maven repositories
         working-directory: VoxMeet
         run: |
