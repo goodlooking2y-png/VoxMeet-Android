@@ -3,7 +3,7 @@ name: Build VoxMeet APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/premium-blue-ui ]
 
 jobs:
   build:
@@ -23,6 +23,86 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Apply selected VoxMeet launcher icon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import re
+
+          root = Path("VoxMeet/app/src/main")
+          if not root.is_dir():
+              raise SystemExit("Android app source directory was not found")
+          icon_data = base64.b64decode(Path("overrides/voxmeet-icon.b64").read_text().strip())
+          manifests = list(root.rglob("AndroidManifest.xml"))
+          if not manifests:
+              raise SystemExit("AndroidManifest.xml was not found")
+          for manifest in manifests:
+              source = manifest.read_text()
+              source = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/ic_launcher"', source)
+              source = re.sub(r'android:roundIcon="[^"]+"', 'android:roundIcon="@mipmap/ic_launcher"', source)
+              manifest.write_text(source)
+          res = root / "res"
+          for folder in res.glob("mipmap-*"):
+              if folder.is_dir():
+                  for old in folder.glob("ic_launcher.*"):
+                      old.unlink()
+                  for old in folder.glob("ic_launcher_round.*"):
+                      old.unlink()
+          for density in ("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"):
+              folder = res / f"mipmap-{density}"
+              folder.mkdir(parents=True, exist_ok=True)
+              (folder / "ic_launcher.jpg").write_bytes(icon_data)
+          print("Installed premium blue VoxMeet launcher icon in all Android densities")
+          PY
+
+      - name: Configure Maven repositories
+        working-directory: VoxMeet
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = next((p for p in (Path("settings.gradle.kts"), Path("settings.gradle")) if p.is_file()), None)
+          if settings is None:
+              raise SystemExit("Could not find settings.gradle(.kts)")
+          source = settings.read_text()
+          if "https://jitpack.io" not in source:
+              if settings.suffix == ".kts":
+                  repo_line = '        maven { url = uri("https://jitpack.io") }'
+              else:
+                  repo_line = '        maven { url "https://jitpack.io" }'
+
+              pattern = r"(dependencyResolutionManagement\s*\{\s*repositories\s*\{)"
+              if re.search(pattern, source):
+                  source = re.sub(
+                      pattern,
+                      lambda match: match.group(1) + chr(10) + repo_line + chr(10),
+                      source,
+                      count=1
+                  )
+              else:
+                  block = (
+                      "dependencyResolutionManagement {" + chr(10) +
+                      "    repositories {" + chr(10) +
+                      repo_line + chr(10) +
+                      "        google()" + chr(10) +
+                      "        mavenCentral()" + chr(10) +
+                      "    }" + chr(10) +
+                      "}" + chr(10)
+                  )
+                  source = source.rstrip() + chr(10) + chr(10) + block
+              settings.write_text(source)
+          print("JitPack repository configured in", settings)
+          PY
+
+      - name: Apply VoxMeet Premium Blue UI and required app components
+        run: |
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
+          cp overrides/AuthGate.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/AuthGate.kt
+          cp overrides/LiveKitAudioManager.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LiveKitAudioManager.kt
+
       - name: Set Java and Kotlin targets in the Android app module
         working-directory: VoxMeet
         run: |
@@ -35,6 +115,30 @@ jobs:
               raise SystemExit("Could not find app/build.gradle or app/build.gradle.kts")
           print(f"Patching {build_file}")
           original = build_file.read_text()
+
+          # The replacement UI uses Firebase Authentication and LiveKit SDKs (injected before compile).
+          # Add the SDKs to the extracted app module before Kotlin compilation.
+          import re
+          if "com.google.firebase:firebase-auth" not in original:
+              match = re.search(r"dependencies\s*\{", original)
+              if not match:
+                  raise SystemExit("Could not find dependencies block in app Gradle file")
+              if build_file.suffix == ".kts":
+                  deps = '''
+              implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
+              implementation("com.google.firebase:firebase-auth")
+              implementation("io.livekit:livekit-android:2.30.0")
+          '''
+              else:
+                  deps = '''
+              implementation platform("com.google.firebase:firebase-bom:34.5.0")
+              implementation "com.google.firebase:firebase-auth"
+              implementation "io.livekit:livekit-android:2.30.0"
+          '''
+              pos = match.end()
+              original = original[:pos] + "\n" + deps + original[pos:]
+              print("Added Firebase Auth and LiveKit dependencies")
+
           if build_file.suffix == ".kts":
               patch = """
           
