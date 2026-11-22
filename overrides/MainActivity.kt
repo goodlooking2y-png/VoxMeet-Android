@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -60,8 +63,18 @@ fun VoxMeetApp() {
     var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
-    var walletCoins by remember { mutableIntStateOf(120) }
     val context = LocalContext.current
+    val walletPrefs = remember(context) { context.getSharedPreferences("voxmeet_wallet", android.content.Context.MODE_PRIVATE) }
+    var walletCoins by remember(walletPrefs) { mutableIntStateOf(walletPrefs.getInt("free_coins", 120)) }
+    val todayKey = remember { SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) }
+    var claimedDailyReward by remember(walletPrefs) { mutableStateOf(walletPrefs.getString("daily_reward_date", "") == todayKey) }
+    val claimDailyReward: () -> Unit = {
+        if (!claimedDailyReward) {
+            walletCoins += 20
+            walletPrefs.edit().putInt("free_coins", walletCoins).putString("daily_reward_date", todayKey).apply()
+            claimedDailyReward = true
+        }
+    }
     val audioManager = remember { LiveKitAudioManager(context) }
     val roomParticipants by audioManager.participants.collectAsState()
     val roomMessages by audioManager.messages.collectAsState()
@@ -193,10 +206,10 @@ fun VoxMeetApp() {
                         0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true }, { showWallet = true }, walletCoins)
                         1 -> DiscoverScreen(rooms, Modifier.padding(padding), { activeRoom = it })
                         2 -> MessagesScreen(Modifier.padding(padding))
-                        else -> ProfileScreen(Modifier.padding(padding))
+                        else -> ProfileScreen(Modifier.padding(padding), walletCoins, claimDailyReward, !claimedDailyReward)
                     }
                 }
-                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })
+                if (showWallet) WalletDialog(coins = walletCoins, canClaimDailyReward = !claimedDailyReward, onClaimDailyReward = claimDailyReward, onDismiss = { showWallet = false })
                 if (showCreate) CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
@@ -331,7 +344,7 @@ fun WalletPill(walletCoins: Int, onWallet: () -> Unit) {
 
 
 @Composable
-fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
+fun WalletDialog(coins: Int, canClaimDailyReward: Boolean, onClaimDailyReward: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Panel,
@@ -339,10 +352,17 @@ fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("বর্তমান ব্যালেন্স: $coins ডেমো কয়েন", color = Color.White)
-                Text("বাস্তব কয়েন কেনা এখনো চালু নয়। নিরাপদ সার্ভার, পেমেন্ট যাচাই ও স্টোর নীতিমালা নিশ্চিত হলে পেমেন্ট যুক্ত হবে।", color = Muted, fontSize = 12.sp)
+                Text("কয়েনগুলো বিনামূল্যের ডেমো ব্যালেন্স। কোনো কয়েন কেনা, পেমেন্ট বা ক্যাশআউট নেই।", color = Muted, fontSize = 12.sp)
+                Text("দৈনিক ফ্রি রিওয়ার্ড: +20 কয়েন", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (canClaimDailyReward) "আজকের রিওয়ার্ড এখনো নেওয়া হয়নি।" else "আজকের রিওয়ার্ড নেওয়া হয়েছে।", color = Muted, fontSize = 11.sp)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("ঠিক আছে") } }
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) { Text("বন্ধ") }
+                Button(onClick = onClaimDailyReward, enabled = canClaimDailyReward) { Text(if (canClaimDailyReward) "ফ্রি কয়েন নিন" else "নেওয়া হয়েছে") }
+            }
+        }
     )
 }
 
@@ -724,7 +744,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ProfileScreen(modifier: Modifier = Modifier) {
+fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyReward: () -> Unit, canClaimDailyReward: Boolean) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
     var showSignOutConfirmation by remember { mutableStateOf(false) }
@@ -787,7 +807,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     Text("My Wallet", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("Coins ও লেনদেনের তথ্য", color = Muted, fontSize = 11.sp)
                 }
-                Text("120 coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("$walletCoins free coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
         item {
@@ -811,7 +831,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
-    if (showWallet) WalletDialog(coins = 120, onDismiss = { showWallet = false })
+    if (showWallet) WalletDialog(coins = walletCoins, canClaimDailyReward = canClaimDailyReward, onClaimDailyReward = onClaimDailyReward, onDismiss = { showWallet = false })
     if (showSignOutConfirmation) {
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
