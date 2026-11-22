@@ -431,6 +431,9 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
     var showPk by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
+    var showSafetyMenu by remember { mutableStateOf(false) }
+    var safetyAction by remember { mutableStateOf<String?>(null) }
+    var reportReason by remember { mutableStateOf("অনুপযুক্ত আচরণ") }
 
     Column(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF173454), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
@@ -438,7 +441,26 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("←  Back", color = Color.White, modifier = Modifier.clickable { onLeave() })
             Text("● LIVE ROOM", color = Pink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("👥 ${participants.size}", color = Color.White, fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("👥 ${participants.size}", color = Color.White, fontSize = 12.sp)
+                Box {
+                    IconButton(onClick = { showSafetyMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "Room safety", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = showSafetyMenu, onDismissRequest = { showSafetyMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("রুম রিপোর্ট করুন") },
+                            leadingIcon = { Icon(Icons.Default.Flag, null) },
+                            onClick = { showSafetyMenu = false; safetyAction = "report" }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("হোস্ট ব্লক করুন") },
+                            leadingIcon = { Icon(Icons.Default.Block, null) },
+                            onClick = { showSafetyMenu = false; safetyAction = "block" }
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(18.dp))
         Text(room.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
@@ -507,6 +529,51 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         }
         Text(if (micOn) "মাইক চালু আছে" else "মাইক বন্ধ আছে", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
         Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • Gift/PK: কমিউনিটি ইভেন্ট ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+
+    if (safetyAction != null) {
+        AlertDialog(
+            onDismissRequest = { safetyAction = null },
+            containerColor = Panel,
+            title = {
+                Text(if (safetyAction == "report") "রুম রিপোর্ট করুন" else "হোস্ট ব্লক করুন", color = Color.White)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    if (safetyAction == "report") {
+                        Text("রিপোর্টের কারণ নির্বাচন করুন", color = Muted, fontSize = 12.sp)
+                        listOf("অনুপযুক্ত আচরণ", "হয়রানি বা বুলিং", "স্প্যাম বা প্রতারণা", "ক্ষতিকর বা অবৈধ কনটেন্ট").forEach { reason ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                    .background(if (reportReason == reason) Panel2 else Panel.copy(alpha = .5f))
+                                    .clickable { reportReason = reason }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = reportReason == reason, onClick = { reportReason = reason })
+                                Spacer(Modifier.width(6.dp))
+                                Text(reason, color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Text("${room.host}-কে ব্লক করলে এই ডেমো সেশনে রুম থেকে বের হয়ে যাবেন। প্রকৃত ব্লক কার্যকর করতে অ্যাকাউন্ট-ভিত্তিক সার্ভার ব্যবস্থা প্রয়োজন।", color = Muted, fontSize = 12.sp)
+                    }
+                    Text("নোট: এই সংস্করণে রিপোর্ট সার্ভারে পাঠানো বা স্থায়ী ব্লক এখনো চালু নয়।", color = Color(0xFFFFC857), fontSize = 10.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    notice = if (safetyAction == "report") "রিপোর্ট ডেমো প্রস্তুত: $reportReason" else "হোস্ট ব্লক ডেমো: রুম থেকে বের হচ্ছেন"
+                    val shouldLeave = safetyAction == "block"
+                    safetyAction = null
+                    if (shouldLeave) onLeave()
+                }) {
+                    Text(if (safetyAction == "report") "রিপোর্ট প্রস্তুত" else "ব্লক ও বের হন", color = Pink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { safetyAction = null }) { Text("বাতিল", color = Muted) }
+            }
+        )
     }
 
     if (showGift) {
