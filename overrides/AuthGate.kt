@@ -29,12 +29,12 @@ import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import java.util.concurrent.TimeUnit
 
-private val AuthBg = Color(0xFF100D20)
-private val AuthPanelColor = Color(0xFF211A35)
-private val AuthPinkColor = Color(0xFFFF4D91)
-private val AuthVioletColor = Color(0xFF9167FF)
-private val AuthMutedColor = Color(0xFFB9B2C9)
-private val AuthErrorColor = Color(0xFFFF8C9D)
+private val AuthBg = Color(0xFF071426)
+private val AuthPanelColor = Color(0xFF10233D)
+private val AuthPinkColor = Color(0xFF4DA3FF)
+private val AuthVioletColor = Color(0xFF1769E0)
+private val AuthMutedColor = Color(0xFFA9BCD2)
+private val AuthErrorColor = Color(0xFFFF8A8A)
 
 @Composable
 fun VoxMeetAuthGate(content: @Composable () -> Unit) {
