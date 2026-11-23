@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +26,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +51,48 @@ private val Muted = Color(0xFFA9BCD2)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { VoxMeetAuthGate { VoxMeetApp() } }
+        setContent {
+            var showSplash by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(1800)
+                showSplash = false
+            }
+            if (showSplash) {
+                VoxMeetSplashScreen()
+            } else {
+                VoxMeetAuthGate { VoxMeetApp() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoxMeetSplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF061B54), Color(0xFF073B9B), Color(0xFF071426))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(22.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.voxmeet_splash_logo),
+                contentDescription = "VoxMeet headset logo",
+                modifier = Modifier.size(232.dp),
+                contentScale = ContentScale.Fit
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.VideoCall, contentDescription = null, tint = Color(0xFF42D6C5), modifier = Modifier.size(25.dp))
+                Text("VoxMeet", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
     }
 }
 
