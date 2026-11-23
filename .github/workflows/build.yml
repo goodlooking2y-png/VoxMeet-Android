@@ -56,6 +56,20 @@ jobs:
           print("Installed premium blue VoxMeet launcher icon in all Android densities")
           PY
 
+      - name: Install VoxMeet premium blue splash artwork
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+
+          main = Path("VoxMeet/app/src/main")
+          data = base64.b64decode(Path("overrides/voxmeet-icon.b64").read_text().strip())
+          target = main / "res" / "drawable-nodpi"
+          target.mkdir(parents=True, exist_ok=True)
+          (target / "voxmeet_splash_logo.jpg").write_bytes(data)
+          print("Installed VoxMeet splash artwork")
+          PY
+
       - name: Configure Maven repositories
         working-directory: VoxMeet
         run: |
