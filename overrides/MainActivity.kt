@@ -795,77 +795,228 @@ fun DiscoverStat(label: String, value: String, symbol: String, tint: Color, modi
 
 @Composable
 fun MessagesScreen(modifier: Modifier = Modifier) {
-    var query by remember { mutableStateOf("") }
-    var selectedMessage by remember { mutableStateOf<String?>(null) }
-    val chats = listOf(
-        Triple("Sami", "আজকের রুমে দেখা হবে!", "2m"),
-        Triple("Nayeem", "প্রবাস জীবনের গল্পটা দারুণ ছিল", "18m"),
-        Triple("Mitu", "ধন্যবাদ ❤️", "1h"),
-        Triple("Arif", "নতুন লাইভ শুরু করেছি", "3h"),
-        Triple("VoxMeet Team", "VoxMeet কমিউনিটিতে স্বাগতম!", "1d")
-    )
-    Column(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text("YOUR INBOX", color = Pink, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
-        Text("Messages", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-        Text("বন্ধুদের সঙ্গে যোগাযোগ রাখো", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(13.dp))
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Forum, null, tint = Color.White, modifier = Modifier.size(17.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("তোমার কমিউনিটি ইনবক্স", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text("নতুন কথোপকথন এখানে দেখা যাবে", color = Muted, fontSize = 9.sp)
-            }
-            Icon(Icons.Default.ChevronRight, null, tint = Muted)
+    val auth = remember { FirebaseAuth.getInstance() }
+    val db = remember { FirebaseFirestore.getInstance() }
+    val user = auth.currentUser
+    val uid = user?.uid
+    val context = LocalContext.current
+    val prefs = remember(uid) { context.getSharedPreferences("voxmeet_profile_" + (uid ?: "guest"), android.content.Context.MODE_PRIVATE) }
+    val myName = prefs.getString("name", user?.displayName ?: "VoxMeet User") ?: "VoxMeet User"
+    var conversations by remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
+    var selectedChat by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var recipientUid by remember { mutableStateOf("") }
+    var showNewChat by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf("") }
+    var search by remember { mutableStateOf("") }
+
+    DisposableEffect(uid) {
+        if (uid == null) {
+            errorText = "মেসেজ ব্যবহার করতে আগে লগইন করুন।"
+            onDispose { }
+        } else {
+            val registration = db.collection("chats").whereArrayContains("members", uid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) errorText = "ইনবক্স লোড হয়নি: ${error.localizedMessage}"
+                    else if (snapshot != null) {
+                        conversations = snapshot.documents.mapNotNull { doc ->
+                            doc.data?.toMutableMap()?.apply { put("chatId", doc.id) }
+                        }.sortedByDescending { (it["updatedAt"] as? com.google.firebase.Timestamp)?.seconds ?: 0L }
+                    }
+                }
+            onDispose { registration.remove() }
         }
-        Spacer(Modifier.height(13.dp))
-        OutlinedTextField(
-            value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-            singleLine = true, placeholder = { Text("মেসেজ খুঁজুন", color = Muted) },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = Aqua) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
-                cursorColor = Pink, focusedContainerColor = Panel, unfocusedContainerColor = Panel
-            )
+    }
+
+    if (selectedChat != null) {
+        DirectChatScreen(
+            chat = selectedChat!!,
+            myUid = uid ?: "",
+            myName = myName,
+            onBack = { selectedChat = null },
+            onError = { errorText = it }
         )
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Recent chats", color = Color.White, fontWeight = FontWeight.Bold)
-            Text("ডেমো ইনবক্স", color = Muted, fontSize = 10.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(chats.filter { it.first.contains(query, true) || it.second.contains(query, true) }) { chat ->
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF102943))))
-                        .clickable { selectedMessage = chat.first }.padding(13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Violet, Pink))), contentAlignment = Alignment.Center) {
-                        Text(chat.first.take(1), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+    } else {
+        Column(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("YOUR INBOX", color = Pink, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+                    Text("Messages", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("ব্যক্তিগত কথোপকথন", color = Muted, fontSize = 12.sp)
+                }
+                Button(onClick = { showNewChat = true }, colors = ButtonDefaults.buttonColors(containerColor = Violet)) {
+                    Icon(Icons.Default.Add, null)
+                    Text("নতুন চ্যাট")
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, placeholder = { Text("চ্যাট খুঁজুন", color = Muted) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Aqua) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
+                    cursorColor = Pink, focusedContainerColor = Panel, unfocusedContainerColor = Panel
+                )
+            )
+            if (errorText.isNotBlank()) Text(errorText, color = Pink, fontSize = 11.sp, modifier = Modifier.padding(vertical = 8.dp))
+            Spacer(Modifier.height(10.dp))
+            if (conversations.isEmpty()) {
+                Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.Forum, null, tint = Muted, modifier = Modifier.size(48.dp))
+                    Text("এখনো কোনো চ্যাট নেই", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("নতুন চ্যাট চাপুন এবং অপর ব্যক্তির User ID লিখুন।", color = Muted, fontSize = 11.sp)
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                    items(conversations.filter { item ->
+                        val names = item["participantNames"] as? Map<*, *> ?: emptyMap<Any, Any>()
+                        val other = (item["members"] as? List<*>)?.firstOrNull { it != uid }?.toString() ?: ""
+                        (names[other]?.toString() ?: other).contains(search, true) ||
+                            (item["lastMessage"]?.toString() ?: "").contains(search, true)
+                    }) { chat ->
+                        val members = chat["members"] as? List<*> ?: emptyList<Any>()
+                        val otherUid = members.firstOrNull { it != uid }?.toString() ?: ""
+                        val names = chat["participantNames"] as? Map<*, *> ?: emptyMap<Any, Any>()
+                        val otherName = names[otherUid]?.toString() ?: otherUid
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF102943))))
+                                .clickable { selectedChat = chat }.padding(13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.size(46.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Violet, Pink))), contentAlignment = Alignment.Center) {
+                                Text(otherName.take(1).uppercase(), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(otherName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(chat["lastMessage"]?.toString() ?: "কথোপকথন শুরু করুন", color = Muted, fontSize = 11.sp, maxLines = 1)
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = Aqua)
+                        }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(chat.first, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(chat.second, color = Muted, fontSize = 11.sp, maxLines = 1)
-                    }
-                    Text(chat.third, color = Aqua, fontSize = 10.sp)
                 }
             }
         }
     }
-    if (selectedMessage != null) {
+
+    if (showNewChat) {
         AlertDialog(
-            onDismissRequest = { selectedMessage = null }, containerColor = Panel,
-            title = { Text(selectedMessage!!, color = Color.White) },
-            text = { Text("এই ইনবক্সটি এখন ডিজাইন ডেমো। ব্যক্তিগত মেসেজ সংরক্ষণ ও পাঠাতে মেসেজিং ব্যাকএন্ড যুক্ত করতে হবে।", color = Muted) },
-            confirmButton = { TextButton(onClick = { selectedMessage = null }) { Text("ঠিক আছে") } }
+            onDismissRequest = { showNewChat = false },
+            containerColor = Panel,
+            title = { Text("নতুন ব্যক্তিগত চ্যাট", color = Color.White) },
+            text = {
+                Column {
+                    Text("অপর ব্যবহারকারীর VoxMeet User ID লিখুন।", color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(value = recipientUid, onValueChange = { recipientUid = it.trim() }, singleLine = true, label = { Text("User ID") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val other = recipientUid.trim()
+                    if (uid == null || other.isBlank() || other == uid) {
+                        errorText = "সঠিক অন্য ব্যবহারকারীর User ID দিন।"
+                    } else {
+                        val members = listOf(uid, other).sorted()
+                        val chatId = members.joinToString("_")
+                        val names = mapOf(uid to myName, other to other)
+                        db.collection("chats").document(chatId).set(
+                            mapOf("members" to members, "participantNames" to names, "lastMessage" to "", "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()),
+                            SetOptions.merge()
+                        ).addOnSuccessListener {
+                            selectedChat = mapOf("chatId" to chatId, "members" to members, "participantNames" to names, "lastMessage" to "")
+                            showNewChat = false
+                            recipientUid = ""
+                            errorText = ""
+                        }.addOnFailureListener { errorText = "চ্যাট তৈরি হয়নি: ${it.localizedMessage}" }
+                    }
+                }) { Text("শুরু করুন") }
+            },
+            dismissButton = { TextButton(onClick = { showNewChat = false }) { Text("বাতিল") } }
         )
+    }
+}
+
+@Composable
+private fun DirectChatScreen(
+    chat: Map<String, Any>,
+    myUid: String,
+    myName: String,
+    onBack: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val db = remember { FirebaseFirestore.getInstance() }
+    val chatId = chat["chatId"]?.toString() ?: return
+    val members = chat["members"] as? List<*> ?: emptyList<Any>()
+    val otherUid = members.firstOrNull { it != myUid }?.toString() ?: ""
+    val names = chat["participantNames"] as? Map<*, *> ?: emptyMap<Any, Any>()
+    val otherName = names[otherUid]?.toString() ?: otherUid
+    var messages by remember { mutableStateOf<List<Map<String, Any>>>(emptyList()) }
+    var draft by remember { mutableStateOf("") }
+
+    DisposableEffect(chatId) {
+        val registration = db.collection("chats").document(chatId).collection("messages")
+            .orderBy("createdAt")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) onError("মেসেজ লোড হয়নি: ${error.localizedMessage}")
+                else if (snapshot != null) messages = snapshot.documents.mapNotNull { doc ->
+                    doc.data?.toMutableMap()?.apply { put("messageId", doc.id) }
+                }
+            }
+        onDispose { registration.remove() }
+    }
+
+    Column(Modifier.fillMaxSize().background(Ink).padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
+            Column(Modifier.weight(1f)) {
+                Text(otherName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("VoxMeet ব্যক্তিগত চ্যাট", color = Muted, fontSize = 10.sp)
+            }
+        }
+        Divider(color = Panel2)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = false, contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(messages) { message ->
+                val mine = message["senderId"] == myUid
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                    Text(
+                        message["text"]?.toString() ?: "",
+                        color = Color.White,
+                        modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(16.dp))
+                            .background(if (mine) Violet else Panel).padding(horizontal = 13.dp, vertical = 10.dp),
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = draft, onValueChange = { draft = it }, modifier = Modifier.weight(1f),
+                placeholder = { Text("মেসেজ লিখুন…", color = Muted) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
+                    focusedContainerColor = Panel, unfocusedContainerColor = Panel
+                )
+            )
+            IconButton(onClick = {
+                val text = draft.trim()
+                if (text.isNotEmpty()) {
+                    val message = mapOf("senderId" to myUid, "senderName" to myName, "recipientId" to otherUid, "text" to text, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())
+                    db.collection("chats").document(chatId).collection("messages").add(message)
+                        .addOnSuccessListener {
+                            db.collection("chats").document(chatId).set(
+                                mapOf("lastMessage" to text, "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()),
+                                SetOptions.merge()
+                            )
+                            draft = ""
+                        }
+                        .addOnFailureListener { onError("মেসেজ পাঠানো যায়নি: ${it.localizedMessage}") }
+                }
+            }) { Icon(Icons.Default.Send, null, tint = Aqua) }
+        }
     }
 }
 
