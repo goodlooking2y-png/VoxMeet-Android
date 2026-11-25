@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 
 // VoxMeet Premium Blue visual system
@@ -51,6 +53,17 @@ private val Muted = Color(0xFFA9BCD2)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ensure Firebase's default app exists before the Compose auth gate calls FirebaseAuth.getInstance().
+        if (FirebaseApp.getApps(this).isEmpty()) {
+            val firebaseOptions = FirebaseOptions.Builder()
+                .setApplicationId("1:669672762691:android:7a4740353a622af4e293f6")
+                .setApiKey("AIzaSyCbMi5D7JlU8Hzv_s8BGzl710D2RJyYJvc")
+                .setProjectId("voxmeet-a4332")
+                .setGcmSenderId("669672762691")
+                .setStorageBucket("voxmeet-a4332.firebasestorage.app")
+                .build()
+            FirebaseApp.initializeApp(this, firebaseOptions)
+        }
         setContent {
             var showSplash by remember { mutableStateOf(true) }
             LaunchedEffect(Unit) {
