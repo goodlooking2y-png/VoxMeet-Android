@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 
 // VoxMeet Premium Blue visual system
 private val Ink = Color(0xFF071426)
@@ -891,6 +893,68 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
     var notificationsEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("notifications_enabled", true)) }
     var soundEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("sound_enabled", true)) }
     var vibrationEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("vibration_enabled", true)) }
+    var cloudSyncStatus by remember { mutableStateOf("ক্লাউড সিঙ্ক পরীক্ষা হচ্ছে…") }
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val userId = accountUser?.uid
+    val saveCloudField: (String, Any) -> Unit = { field, value ->
+        if (userId != null) {
+            firestore.collection("users").document(userId).set(mapOf(field to value), SetOptions.merge())
+                .addOnSuccessListener { cloudSyncStatus = "ক্লাউডে সংরক্ষিত" }
+                .addOnFailureListener { error -> cloudSyncStatus = "ক্লাউড সিঙ্ক হয়নি: ${error.localizedMessage ?: "Firestore সেটআপ যাচাই করুন"}" }
+        } else {
+            cloudSyncStatus = "লগইন ছাড়া ক্লাউড সিঙ্ক হবে না"
+        }
+    }
+    DisposableEffect(userId) {
+        if (userId == null) {
+            cloudSyncStatus = "লগইন ছাড়া ক্লাউড সিঙ্ক হবে না"
+            onDispose { }
+        } else {
+            val registration = firestore.collection("users").document(userId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        cloudSyncStatus = "ক্লাউড সিঙ্ক পাওয়া যায়নি: ${error.localizedMessage ?: "Firestore সেটআপ প্রয়োজন"}"
+                    } else if (snapshot != null && snapshot.exists()) {
+                        snapshot.getString("name")?.let {
+                            profileName = it
+                            profilePrefs.edit().putString("name", it).apply()
+                        }
+                        snapshot.getString("bio")?.let {
+                            profileBio = it
+                            profilePrefs.edit().putString("bio", it).apply()
+                        }
+                        snapshot.getBoolean("private_profile")?.let {
+                            privateProfile = it
+                            profilePrefs.edit().putBoolean("private_profile", it).apply()
+                        }
+                        snapshot.getBoolean("allow_messages")?.let {
+                            allowMessages = it
+                            profilePrefs.edit().putBoolean("allow_messages", it).apply()
+                        }
+                        snapshot.getBoolean("show_online_status")?.let {
+                            showOnlineStatus = it
+                            profilePrefs.edit().putBoolean("show_online_status", it).apply()
+                        }
+                        snapshot.getBoolean("notifications_enabled")?.let {
+                            notificationsEnabled = it
+                            profilePrefs.edit().putBoolean("notifications_enabled", it).apply()
+                        }
+                        snapshot.getBoolean("sound_enabled")?.let {
+                            soundEnabled = it
+                            profilePrefs.edit().putBoolean("sound_enabled", it).apply()
+                        }
+                        snapshot.getBoolean("vibration_enabled")?.let {
+                            vibrationEnabled = it
+                            profilePrefs.edit().putBoolean("vibration_enabled", it).apply()
+                        }
+                        cloudSyncStatus = "ক্লাউডের সঙ্গে সিঙ্ক হয়েছে"
+                    } else {
+                        cloudSyncStatus = "প্রথমবার সিঙ্ক: সেটিংস ক্লাউডে সংরক্ষণ হবে"
+                    }
+                }
+            onDispose { registration.remove() }
+        }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -999,6 +1063,8 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                         profileBio = draftBio.trim()
                         profilePrefs.edit().putString("name", profileName).putString("bio", profileBio).apply()
                         accountUser?.updateProfile(com.google.firebase.auth.UserProfileChangeRequest.Builder().setDisplayName(profileName).build())
+                        saveCloudField("name", profileName)
+                        saveCloudField("bio", profileBio)
                         showEdit = false
                     }
                 }) { Text("সংরক্ষণ") }
@@ -1014,17 +1080,18 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("প্রাইভেট প্রোফাইল", color = Color.White); Text("প্রোফাইলের দৃশ্যমানতা সীমিত", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it; profilePrefs.edit().putBoolean("private_profile", it).apply() })
+                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it; profilePrefs.edit().putBoolean("private_profile", it).apply(); saveCloudField("private_profile", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("মেসেজ গ্রহণ", color = Color.White); Text("অন্যদের মেসেজ পাঠাতে অনুমতি", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it; profilePrefs.edit().putBoolean("allow_messages", it).apply() })
+                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it; profilePrefs.edit().putBoolean("allow_messages", it).apply(); saveCloudField("allow_messages", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("অনলাইন স্ট্যাটাস", color = Color.White); Text("আপনি অনলাইনে আছেন কি না", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it; profilePrefs.edit().putBoolean("show_online_status", it).apply() })
+                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it; profilePrefs.edit().putBoolean("show_online_status", it).apply(); saveCloudField("show_online_status", it) })
                     }
-                    Text("সেটিংস এই ডিভাইসে সংরক্ষিত হবে। সার্ভারে প্রয়োগ করতে privacy backend প্রয়োজন হবে।", color = Muted, fontSize = 10.sp)
+                    Text(cloudSyncStatus, color = Aqua, fontSize = 10.sp)
+                    Text("ক্লাউডে পছন্দ সংরক্ষণ হবে; সার্ভার-সাইড প্রাইভেসি enforcement আলাদা কাজ।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("ঠিক আছে") } }
@@ -1054,17 +1121,18 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it; profilePrefs.edit().putBoolean("notifications_enabled", it).apply() })
+                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it; profilePrefs.edit().putBoolean("notifications_enabled", it).apply(); saveCloudField("notifications_enabled", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it; profilePrefs.edit().putBoolean("sound_enabled", it).apply() })
+                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it; profilePrefs.edit().putBoolean("sound_enabled", it).apply(); saveCloudField("sound_enabled", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it; profilePrefs.edit().putBoolean("vibration_enabled", it).apply() })
+                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it; profilePrefs.edit().putBoolean("vibration_enabled", it).apply(); saveCloudField("vibration_enabled", it) })
                     }
-                    Text("এই পছন্দগুলো এই ডিভাইসে সংরক্ষিত হবে। নোটিফিকেশন ডেলিভারি ও সিস্টেম পারমিশন আলাদাভাবে সংযুক্ত করতে হবে।", color = Muted, fontSize = 10.sp)
+                    Text(cloudSyncStatus, color = Aqua, fontSize = 10.sp)
+                    Text("এটি নোটিফিকেশন পছন্দ সিঙ্ক করে; Push Notification পাঠাতে FCM সেটআপ প্রয়োজন।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showSettings = false }) { Text("ঠিক আছে") } }
