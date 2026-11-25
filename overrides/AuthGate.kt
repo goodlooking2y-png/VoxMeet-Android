@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import java.util.concurrent.TimeUnit
@@ -58,7 +59,9 @@ fun VoxMeetAuthGate(content: @Composable () -> Unit) {
 @Composable
 private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
     var mode by remember { mutableStateOf("email") }
-    var register by remember { mutableStateOf(true) }
+    var register by remember { mutableStateOf(false) }
+    var displayName by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -166,6 +169,10 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
             }
             Spacer(Modifier.height(16.dp))
             if (mode == "email") {
+                if (register) {
+                    AuthInput(displayName, { displayName = it }, "আপনার নাম")
+                    Spacer(Modifier.height(10.dp))
+                }
                 AuthInput(email, { email = it }, "ইমেইল ঠিকানা", KeyboardType.Email)
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
@@ -175,14 +182,28 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     colors = authInputColors()
                 )
+                if (register) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = confirmPassword, onValueChange = { confirmPassword = it }, label = { Text("পাসওয়ার্ড নিশ্চিত করুন") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                        colors = authInputColors()
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = {
                         val cleanEmail = email.trim()
-                        if (!Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                        if (register && displayName.trim().length < 2) {
+                            showError("আপনার নাম কমপক্ষে ২ অক্ষরের লিখুন।")
+                        } else if (!Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
                             showError("সঠিক ইমেইল ঠিকানা লিখুন।")
                         } else if (password.length < 6) {
                             showError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।")
+                        } else if (register && password != confirmPassword) {
+                            showError("দুটি পাসওয়ার্ড মিলছে না।")
                         } else {
                             busy = true
                             val task = if (register) auth.createUserWithEmailAndPassword(cleanEmail, password)
@@ -194,12 +215,22 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
                                 } else {
                                     val current = auth.currentUser
                                     if (register && current != null) {
-                                        current.sendEmailVerification().addOnCompleteListener { sent ->
-                                            busy = false
-                                            if (sent.isSuccessful) {
-                                                showInfo("ভেরিফিকেশন ইমেইল পাঠানো হয়েছে। Inbox/Spam দেখে লিংকে চাপ দিন।")
+                                        val profile = UserProfileChangeRequest.Builder()
+                                            .setDisplayName(displayName.trim())
+                                            .build()
+                                        current.updateProfile(profile).addOnCompleteListener { profileResult ->
+                                            if (!profileResult.isSuccessful) {
+                                                busy = false
+                                                showError(authErrorMessage(profileResult.exception, "প্রোফাইলের নাম সংরক্ষণ করা যায়নি।"))
                                             } else {
-                                                showError(authErrorMessage(sent.exception, "ভেরিফিকেশন ইমেইল পাঠানো যায়নি।"))
+                                                current.sendEmailVerification().addOnCompleteListener { sent ->
+                                                    busy = false
+                                                    if (sent.isSuccessful) {
+                                                        showInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলের Inbox/Spam থেকে ভেরিফিকেশন লিংকে চাপ দিন।")
+                                                    } else {
+                                                        showError(authErrorMessage(sent.exception, "অ্যাকাউন্ট তৈরি হয়েছে, তবে ভেরিফিকেশন ইমেইল পাঠানো যায়নি। আবার পাঠান।"))
+                                                    }
+                                                }
                                             }
                                         }
                                     } else {
