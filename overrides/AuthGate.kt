@@ -49,10 +49,7 @@ fun VoxMeetAuthGate(content: @Composable () -> Unit) {
     val currentUser = user
     when {
         currentUser == null -> VoxMeetAuthScreen(auth)
-        currentUser.isEmailVerified || !currentUser.phoneNumber.isNullOrBlank() -> content()
-        else -> EmailVerificationScreen(auth, currentUser) { refreshedUser ->
-            user = refreshedUser
-        }
+        else -> content()
     }
 }
 
@@ -223,19 +220,13 @@ private fun VoxMeetAuthScreen(auth: FirebaseAuth) {
                                                 busy = false
                                                 showError(authErrorMessage(profileResult.exception, "প্রোফাইলের নাম সংরক্ষণ করা যায়নি।"))
                                             } else {
-                                                current.sendEmailVerification().addOnCompleteListener { sent ->
-                                                    busy = false
-                                                    if (sent.isSuccessful) {
-                                                        showInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলের Inbox/Spam থেকে ভেরিফিকেশন লিংকে চাপ দিন।")
-                                                    } else {
-                                                        showError(authErrorMessage(sent.exception, "অ্যাকাউন্ট তৈরি হয়েছে, তবে ভেরিফিকেশন ইমেইল পাঠানো যায়নি। আবার পাঠান।"))
-                                                    }
-                                                }
+                                                busy = false
+                                                showInfo("রেজিস্ট্রেশন সফল! আপনার VoxMeet অ্যাকাউন্ট তৈরি হয়েছে। এখনই ব্যবহার শুরু করতে পারবেন।")
                                             }
                                         }
                                     } else {
                                         busy = false
-                                        showInfo(if (current?.isEmailVerified == true) "লগইন সফল।" else "ইমেইল এখনো ভেরিফাই হয়নি। ইমেইলের লিংকে চাপ দিন।")
+                                        showInfo("লগইন সফল।")
                                     }
                                 }
                             }
