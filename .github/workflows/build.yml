@@ -141,12 +141,14 @@ jobs:
                   deps = '''
               implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
               implementation("com.google.firebase:firebase-auth")
+              implementation("com.google.firebase:firebase-firestore")
               implementation("io.livekit:livekit-android:2.30.0")
           '''
               else:
                   deps = '''
               implementation platform("com.google.firebase:firebase-bom:34.5.0")
               implementation "com.google.firebase:firebase-auth"
+              implementation "com.google.firebase:firebase-firestore"
               implementation "io.livekit:livekit-android:2.30.0"
           '''
               pos = match.end()
