@@ -4,10 +4,14 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -22,6 +26,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,20 +37,77 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 
-private val Ink = Color(0xFF100D20)
-private val Panel = Color(0xFF211A35)
-private val Panel2 = Color(0xFF2B2144)
-private val Pink = Color(0xFFFF4D91)
-private val Violet = Color(0xFF9167FF)
-private val Aqua = Color(0xFF53E0D0)
-private val Muted = Color(0xFFB9B2C9)
+// VoxMeet Premium Blue visual system
+private val Ink = Color(0xFF071426)
+private val Panel = Color(0xFF10233D)
+private val Panel2 = Color(0xFF183657)
+private val Pink = Color(0xFF4DA3FF)
+private val Violet = Color(0xFF1769E0)
+private val Aqua = Color(0xFF42D6C5)
+private val Muted = Color(0xFFA9BCD2)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { VoxMeetAuthGate { VoxMeetApp() } }
+        // Ensure Firebase's default app exists before the Compose auth gate calls FirebaseAuth.getInstance().
+        if (FirebaseApp.getApps(this).isEmpty()) {
+            val firebaseOptions = FirebaseOptions.Builder()
+                .setApplicationId("1:669672762691:android:7a4740353a622af4e293f6")
+                .setApiKey("AIzaSyCbMi5D7JlU8Hzv_s8BGzl710D2RJyYJvc")
+                .setProjectId("voxmeet-a4332")
+                .setGcmSenderId("669672762691")
+                .setStorageBucket("voxmeet-a4332.firebasestorage.app")
+                .build()
+            FirebaseApp.initializeApp(this, firebaseOptions)
+        }
+        setContent {
+            var showSplash by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(1800)
+                showSplash = false
+            }
+            if (showSplash) {
+                VoxMeetSplashScreen()
+            } else {
+                VoxMeetAuthGate { VoxMeetApp() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoxMeetSplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF061B54), Color(0xFF073B9B), Color(0xFF071426))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(22.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.voxmeet_splash_logo),
+                contentDescription = "VoxMeet headset logo",
+                modifier = Modifier.size(232.dp),
+                contentScale = ContentScale.Fit
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.VideoCall, contentDescription = null, tint = Color(0xFF42D6C5), modifier = Modifier.size(25.dp))
+                Text("VoxMeet", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
     }
 }
 
@@ -59,8 +122,18 @@ fun VoxMeetApp() {
     var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
-    var walletCoins by remember { mutableIntStateOf(120) }
     val context = LocalContext.current
+    val walletPrefs = remember(context) { context.getSharedPreferences("voxmeet_wallet", android.content.Context.MODE_PRIVATE) }
+    var walletCoins by remember(walletPrefs) { mutableIntStateOf(walletPrefs.getInt("free_coins", 120)) }
+    val todayKey = remember { SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) }
+    var claimedDailyReward by remember(walletPrefs) { mutableStateOf(walletPrefs.getString("daily_reward_date", "") == todayKey) }
+    val claimDailyReward: () -> Unit = {
+        if (!claimedDailyReward) {
+            walletCoins += 20
+            walletPrefs.edit().putInt("free_coins", walletCoins).putString("daily_reward_date", todayKey).apply()
+            claimedDailyReward = true
+        }
+    }
     val audioManager = remember { LiveKitAudioManager(context) }
     val roomParticipants by audioManager.participants.collectAsState()
     val roomMessages by audioManager.messages.collectAsState()
@@ -180,7 +253,7 @@ fun VoxMeetApp() {
                         )
                     },
                     bottomBar = {
-                        NavigationBar(containerColor = Color(0xFF191428), contentColor = Color.White) {
+                        NavigationBar(containerColor = Color(0xFF0B1B30), contentColor = Color.White) {
                             NavigationBarItem(selectedTab == 0, { selectedTab = 0 }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Home") })
                             NavigationBarItem(selectedTab == 1, { selectedTab = 1 }, icon = { Icon(Icons.Default.Explore, null) }, label = { Text("Discover") })
                             NavigationBarItem(selectedTab == 2, { selectedTab = 2 }, icon = { Icon(Icons.Default.MailOutline, null) }, label = { Text("Messages") })
@@ -192,10 +265,10 @@ fun VoxMeetApp() {
                         0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true }, { showWallet = true }, walletCoins)
                         1 -> DiscoverScreen(rooms, Modifier.padding(padding), { activeRoom = it })
                         2 -> MessagesScreen(Modifier.padding(padding))
-                        else -> ProfileScreen(Modifier.padding(padding))
+                        else -> ProfileScreen(Modifier.padding(padding), walletCoins, claimDailyReward, !claimedDailyReward)
                     }
                 }
-                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })
+                if (showWallet) WalletDialog(coins = walletCoins, canClaimDailyReward = !claimedDailyReward, onClaimDailyReward = claimDailyReward, onDismiss = { showWallet = false })
                 if (showCreate) CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
@@ -242,19 +315,19 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
         item {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF8D3F9F), Color(0xFF57318C), Color(0xFF29204D))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1769E0), Color(0xFF124FAD), Color(0xFF0B2B50))))
                     .clickable { onGoLive() }.padding(17.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("YOUR VOICE, YOUR STAGE", color = Color(0xFFFFC8E0), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
+                    Text("YOUR VOICE, YOUR STAGE", color = Color(0xFFD9ECFF), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
                     Text("Your stage is waiting", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Go live, meet new people and share your vibe", color = Color(0xFFE9DDF5), fontSize = 11.sp)
+                    Text("Go live, meet new people and share your vibe", color = Color(0xFFE0EEFF), fontSize = 11.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("＋  START LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
                             modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Pink).padding(horizontal = 13.dp, vertical = 8.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("শুরু করো", color = Color(0xFFE9DDF5), fontSize = 10.sp)
+                        Text("শুরু করো", color = Color(0xFFE0EEFF), fontSize = 10.sp)
                     }
                 }
                 Box(Modifier.size(66.dp).clip(CircleShape).background(Color.White.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
@@ -330,7 +403,7 @@ fun WalletPill(walletCoins: Int, onWallet: () -> Unit) {
 
 
 @Composable
-fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
+fun WalletDialog(coins: Int, canClaimDailyReward: Boolean, onClaimDailyReward: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Panel,
@@ -338,10 +411,17 @@ fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("বর্তমান ব্যালেন্স: $coins ডেমো কয়েন", color = Color.White)
-                Text("বাস্তব কয়েন কেনা এখনো চালু নয়। নিরাপদ সার্ভার, পেমেন্ট যাচাই ও স্টোর নীতিমালা নিশ্চিত হলে পেমেন্ট যুক্ত হবে।", color = Muted, fontSize = 12.sp)
+                Text("কয়েনগুলো বিনামূল্যের ডেমো ব্যালেন্স। কোনো কয়েন কেনা, পেমেন্ট বা ক্যাশআউট নেই।", color = Muted, fontSize = 12.sp)
+                Text("দৈনিক ফ্রি রিওয়ার্ড: +20 কয়েন", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (canClaimDailyReward) "আজকের রিওয়ার্ড এখনো নেওয়া হয়নি।" else "আজকের রিওয়ার্ড নেওয়া হয়েছে।", color = Muted, fontSize = 11.sp)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("ঠিক আছে") } }
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) { Text("বন্ধ") }
+                Button(onClick = onClaimDailyReward, enabled = canClaimDailyReward) { Text(if (canClaimDailyReward) "ফ্রি কয়েন নিন" else "নেওয়া হয়েছে") }
+            }
+        }
     )
 }
 
@@ -367,7 +447,7 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(15.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF713E91), Color(0xFF282044), Color(0xFFB34D83))))) {
+                .background(Brush.linearGradient(listOf(Color(0xFF155DBB), Color(0xFF112B49), Color(0xFF247ED1))))) {
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .16f), Color.Transparent, Color.Black.copy(alpha = .12f)))))
                 Icon(Icons.Default.Groups, null, tint = Color.White.copy(alpha = .20f), modifier = Modifier.align(Alignment.Center).size(88.dp))
                 Text("● LIVE NOW", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
@@ -410,14 +490,36 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
     var showPk by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
+    var showSafetyMenu by remember { mutableStateOf(false) }
+    var safetyAction by remember { mutableStateOf<String?>(null) }
+    var reportReason by remember { mutableStateOf("অনুপযুক্ত আচরণ") }
 
     Column(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF32204E), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF173454), Ink))).padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("←  Back", color = Color.White, modifier = Modifier.clickable { onLeave() })
             Text("● LIVE ROOM", color = Pink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("👥 ${participants.size}", color = Color.White, fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("👥 ${participants.size}", color = Color.White, fontSize = 12.sp)
+                Box {
+                    IconButton(onClick = { showSafetyMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "Room safety", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = showSafetyMenu, onDismissRequest = { showSafetyMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("রুম রিপোর্ট করুন") },
+                            leadingIcon = { Icon(Icons.Default.Flag, null) },
+                            onClick = { showSafetyMenu = false; safetyAction = "report" }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("হোস্ট ব্লক করুন") },
+                            leadingIcon = { Icon(Icons.Default.Block, null) },
+                            onClick = { showSafetyMenu = false; safetyAction = "block" }
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(18.dp))
         Text(room.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
@@ -445,7 +547,7 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
                         ) {
                             Box(
                                 Modifier.size(48.dp).clip(CircleShape)
-                                    .background(if (occupant == null) Color(0xFF39304F) else if (occupant.isLocal) Violet else Color(0xFF3B345B)),
+                                    .background(if (occupant == null) Color(0xFF244361) else if (occupant.isLocal) Violet else Color(0xFF284A6B)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (occupant == null) {
@@ -486,6 +588,51 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
         }
         Text(if (micOn) "মাইক চালু আছে" else "মাইক বন্ধ আছে", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
         Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • Gift/PK: কমিউনিটি ইভেন্ট ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+
+    if (safetyAction != null) {
+        AlertDialog(
+            onDismissRequest = { safetyAction = null },
+            containerColor = Panel,
+            title = {
+                Text(if (safetyAction == "report") "রুম রিপোর্ট করুন" else "হোস্ট ব্লক করুন", color = Color.White)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    if (safetyAction == "report") {
+                        Text("রিপোর্টের কারণ নির্বাচন করুন", color = Muted, fontSize = 12.sp)
+                        listOf("অনুপযুক্ত আচরণ", "হয়রানি বা বুলিং", "স্প্যাম বা প্রতারণা", "ক্ষতিকর বা অবৈধ কনটেন্ট").forEach { reason ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                    .background(if (reportReason == reason) Panel2 else Panel.copy(alpha = .5f))
+                                    .clickable { reportReason = reason }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = reportReason == reason, onClick = { reportReason = reason })
+                                Spacer(Modifier.width(6.dp))
+                                Text(reason, color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Text("${room.host}-কে ব্লক করলে এই ডেমো সেশনে রুম থেকে বের হয়ে যাবেন। প্রকৃত ব্লক কার্যকর করতে অ্যাকাউন্ট-ভিত্তিক সার্ভার ব্যবস্থা প্রয়োজন।", color = Muted, fontSize = 12.sp)
+                    }
+                    Text("নোট: এই সংস্করণে রিপোর্ট সার্ভারে পাঠানো বা স্থায়ী ব্লক এখনো চালু নয়।", color = Color(0xFFFFC857), fontSize = 10.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    notice = if (safetyAction == "report") "রিপোর্ট ডেমো প্রস্তুত: $reportReason" else "হোস্ট ব্লক ডেমো: রুম থেকে বের হচ্ছেন"
+                    val shouldLeave = safetyAction == "block"
+                    safetyAction = null
+                    if (shouldLeave) onLeave()
+                }) {
+                    Text(if (safetyAction == "report") "রিপোর্ট প্রস্তুত" else "ব্লক ও বের হন", color = Pink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { safetyAction = null }) { Text("বাতিল", color = Muted) }
+            }
+        )
     }
 
     if (showGift) {
@@ -695,7 +842,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
             items(chats.filter { it.first.contains(query, true) || it.second.contains(query, true) }) { chat ->
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF28203D))))
+                        .background(Brush.horizontalGradient(listOf(Panel, Color(0xFF102943))))
                         .clickable { selectedMessage = chat.first }.padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -723,25 +870,91 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ProfileScreen(modifier: Modifier = Modifier) {
+fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyReward: () -> Unit, canClaimDailyReward: Boolean) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
+    val context = LocalContext.current
+    val profilePrefs = remember(accountUser?.uid) {
+        context.getSharedPreferences("voxmeet_profile_" + (accountUser?.uid ?: "guest"), android.content.Context.MODE_PRIVATE)
+    }
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var profileName by remember { mutableStateOf("VoxMeet User") }
-    var profileBio by remember { mutableStateOf("নতুন কমিউনিটি সদস্য") }
+    var profileName by remember(profilePrefs) { mutableStateOf(profilePrefs.getString("name", accountUser?.displayName ?: "VoxMeet User") ?: "VoxMeet User") }
+    var profileBio by remember(profilePrefs) { mutableStateOf(profilePrefs.getString("bio", "নতুন কমিউনিটি সদস্য") ?: "নতুন কমিউনিটি সদস্য") }
     var draftName by remember { mutableStateOf(profileName) }
     var draftBio by remember { mutableStateOf(profileBio) }
-    var privateProfile by remember { mutableStateOf(false) }
-    var allowMessages by remember { mutableStateOf(true) }
-    var showOnlineStatus by remember { mutableStateOf(true) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var soundEnabled by remember { mutableStateOf(true) }
-    var vibrationEnabled by remember { mutableStateOf(true) }
+    var privateProfile by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("private_profile", false)) }
+    var allowMessages by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("allow_messages", true)) }
+    var showOnlineStatus by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("show_online_status", true)) }
+    var notificationsEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("notifications_enabled", true)) }
+    var soundEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("sound_enabled", true)) }
+    var vibrationEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("vibration_enabled", true)) }
+    var cloudSyncStatus by remember { mutableStateOf("ক্লাউড সিঙ্ক পরীক্ষা হচ্ছে…") }
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val userId = accountUser?.uid
+    val saveCloudField: (String, Any) -> Unit = { field, value ->
+        if (userId != null) {
+            firestore.collection("users").document(userId).set(mapOf(field to value), SetOptions.merge())
+                .addOnSuccessListener { cloudSyncStatus = "ক্লাউডে সংরক্ষিত" }
+                .addOnFailureListener { error -> cloudSyncStatus = "ক্লাউড সিঙ্ক হয়নি: ${error.localizedMessage ?: "Firestore সেটআপ যাচাই করুন"}" }
+        } else {
+            cloudSyncStatus = "লগইন ছাড়া ক্লাউড সিঙ্ক হবে না"
+        }
+    }
+    DisposableEffect(userId) {
+        if (userId == null) {
+            cloudSyncStatus = "লগইন ছাড়া ক্লাউড সিঙ্ক হবে না"
+            onDispose { }
+        } else {
+            val registration = firestore.collection("users").document(userId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        cloudSyncStatus = "ক্লাউড সিঙ্ক পাওয়া যায়নি: ${error.localizedMessage ?: "Firestore সেটআপ প্রয়োজন"}"
+                    } else if (snapshot != null && snapshot.exists()) {
+                        snapshot.getString("name")?.let {
+                            profileName = it
+                            profilePrefs.edit().putString("name", it).apply()
+                        }
+                        snapshot.getString("bio")?.let {
+                            profileBio = it
+                            profilePrefs.edit().putString("bio", it).apply()
+                        }
+                        snapshot.getBoolean("private_profile")?.let {
+                            privateProfile = it
+                            profilePrefs.edit().putBoolean("private_profile", it).apply()
+                        }
+                        snapshot.getBoolean("allow_messages")?.let {
+                            allowMessages = it
+                            profilePrefs.edit().putBoolean("allow_messages", it).apply()
+                        }
+                        snapshot.getBoolean("show_online_status")?.let {
+                            showOnlineStatus = it
+                            profilePrefs.edit().putBoolean("show_online_status", it).apply()
+                        }
+                        snapshot.getBoolean("notifications_enabled")?.let {
+                            notificationsEnabled = it
+                            profilePrefs.edit().putBoolean("notifications_enabled", it).apply()
+                        }
+                        snapshot.getBoolean("sound_enabled")?.let {
+                            soundEnabled = it
+                            profilePrefs.edit().putBoolean("sound_enabled", it).apply()
+                        }
+                        snapshot.getBoolean("vibration_enabled")?.let {
+                            vibrationEnabled = it
+                            profilePrefs.edit().putBoolean("vibration_enabled", it).apply()
+                        }
+                        cloudSyncStatus = "ক্লাউডের সঙ্গে সিঙ্ক হয়েছে"
+                    } else {
+                        cloudSyncStatus = "প্রথমবার সিঙ্ক: সেটিংস ক্লাউডে সংরক্ষণ হবে"
+                    }
+                }
+            onDispose { registration.remove() }
+        }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -760,7 +973,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF643B91), Color(0xFF292044), Color(0xFF9A477D))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF1B66B8), Color(0xFF0D2D4E), Color(0xFF2879C8))))
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -769,7 +982,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text(profileBio, color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Text(profileBio, color = Color(0xFFE0EEFF), fontSize = 11.sp)
                 Spacer(Modifier.height(15.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     ProfileMetric("0", "Following")
@@ -786,7 +999,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     Text("My Wallet", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("Coins ও লেনদেনের তথ্য", color = Muted, fontSize = 11.sp)
                 }
-                Text("120 coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("$walletCoins free coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
         item {
@@ -810,7 +1023,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
-    if (showWallet) WalletDialog(coins = 120, onDismiss = { showWallet = false })
+    if (showWallet) WalletDialog(coins = walletCoins, canClaimDailyReward = canClaimDailyReward, onClaimDailyReward = onClaimDailyReward, onDismiss = { showWallet = false })
     if (showSignOutConfirmation) {
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
@@ -840,12 +1053,20 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(value = draftName, onValueChange = { draftName = it }, label = { Text("নাম") }, singleLine = true)
                     OutlinedTextField(value = draftBio, onValueChange = { draftBio = it }, label = { Text("পরিচিতি / Bio") }, minLines = 2)
-                    Text("এই পরিবর্তন আপাতত এই অ্যাপ সেশনে থাকবে। স্থায়ীভাবে সংরক্ষণের জন্য প্রোফাইল ব্যাকএন্ড লাগবে।", color = Muted, fontSize = 11.sp)
+                    Text("নাম ও পরিচিতি এই ডিভাইসে সংরক্ষিত হবে।", color = Muted, fontSize = 11.sp)
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (draftName.isNotBlank()) { profileName = draftName.trim(); profileBio = draftBio.trim(); showEdit = false }
+                    if (draftName.isNotBlank()) {
+                        profileName = draftName.trim()
+                        profileBio = draftBio.trim()
+                        profilePrefs.edit().putString("name", profileName).putString("bio", profileBio).apply()
+                        accountUser?.updateProfile(com.google.firebase.auth.UserProfileChangeRequest.Builder().setDisplayName(profileName).build())
+                        saveCloudField("name", profileName)
+                        saveCloudField("bio", profileBio)
+                        showEdit = false
+                    }
                 }) { Text("সংরক্ষণ") }
             },
             dismissButton = { TextButton(onClick = { showEdit = false }) { Text("বাতিল") } }
@@ -859,17 +1080,18 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("প্রাইভেট প্রোফাইল", color = Color.White); Text("প্রোফাইলের দৃশ্যমানতা সীমিত", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it })
+                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it; profilePrefs.edit().putBoolean("private_profile", it).apply(); saveCloudField("private_profile", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("মেসেজ গ্রহণ", color = Color.White); Text("অন্যদের মেসেজ পাঠাতে অনুমতি", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it })
+                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it; profilePrefs.edit().putBoolean("allow_messages", it).apply(); saveCloudField("allow_messages", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("অনলাইন স্ট্যাটাস", color = Color.White); Text("আপনি অনলাইনে আছেন কি না", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it })
+                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it; profilePrefs.edit().putBoolean("show_online_status", it).apply(); saveCloudField("show_online_status", it) })
                     }
-                    Text("এগুলো আপাতত শুধু এই ডিভাইসের UI সেটিং। সার্ভার-ভিত্তিক প্রাইভেসি প্রয়োগ এখনো সংযুক্ত নয়।", color = Muted, fontSize = 10.sp)
+                    Text(cloudSyncStatus, color = Aqua, fontSize = 10.sp)
+                    Text("ক্লাউডে পছন্দ সংরক্ষণ হবে; সার্ভার-সাইড প্রাইভেসি enforcement আলাদা কাজ।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("ঠিক আছে") } }
@@ -899,17 +1121,18 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
+                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it; profilePrefs.edit().putBoolean("notifications_enabled", it).apply(); saveCloudField("notifications_enabled", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it; profilePrefs.edit().putBoolean("sound_enabled", it).apply(); saveCloudField("sound_enabled", it) })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it })
+                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it; profilePrefs.edit().putBoolean("vibration_enabled", it).apply(); saveCloudField("vibration_enabled", it) })
                     }
-                    Text("এই পছন্দগুলো আপাতত অ্যাপ সেশনে থাকে; স্থায়ী সেটিংস সংরক্ষণ পরবর্তী ধাপ।", color = Muted, fontSize = 10.sp)
+                    Text(cloudSyncStatus, color = Aqua, fontSize = 10.sp)
+                    Text("এটি নোটিফিকেশন পছন্দ সিঙ্ক করে; Push Notification পাঠাতে FCM সেটআপ প্রয়োজন।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showSettings = false }) { Text("ঠিক আছে") } }
