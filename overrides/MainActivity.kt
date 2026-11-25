@@ -898,7 +898,7 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
     val userId = accountUser?.uid
     val saveCloudField: (String, Any) -> Unit = { field, value ->
         if (userId != null) {
-            firestore.collection("users").document(userId).set(mapOf(field to value), SetOptions.merge())
+            firestore.collection("users").document(userId).set(mapOf(field to value, "schemaVersion" to 1), SetOptions.merge())
                 .addOnSuccessListener { cloudSyncStatus = "ক্লাউডে সংরক্ষিত" }
                 .addOnFailureListener { error -> cloudSyncStatus = "ক্লাউড সিঙ্ক হয়নি: ${error.localizedMessage ?: "Firestore সেটআপ যাচাই করুন"}" }
         } else {
