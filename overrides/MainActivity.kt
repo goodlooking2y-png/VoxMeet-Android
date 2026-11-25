@@ -871,22 +871,26 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyReward: () -> Unit, canClaimDailyReward: Boolean) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
+    val context = LocalContext.current
+    val profilePrefs = remember(accountUser?.uid) {
+        context.getSharedPreferences("voxmeet_profile_" + (accountUser?.uid ?: "guest"), android.content.Context.MODE_PRIVATE)
+    }
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var profileName by remember { mutableStateOf("VoxMeet User") }
-    var profileBio by remember { mutableStateOf("নতুন কমিউনিটি সদস্য") }
+    var profileName by remember(profilePrefs) { mutableStateOf(profilePrefs.getString("name", accountUser?.displayName ?: "VoxMeet User") ?: "VoxMeet User") }
+    var profileBio by remember(profilePrefs) { mutableStateOf(profilePrefs.getString("bio", "নতুন কমিউনিটি সদস্য") ?: "নতুন কমিউনিটি সদস্য") }
     var draftName by remember { mutableStateOf(profileName) }
     var draftBio by remember { mutableStateOf(profileBio) }
-    var privateProfile by remember { mutableStateOf(false) }
-    var allowMessages by remember { mutableStateOf(true) }
-    var showOnlineStatus by remember { mutableStateOf(true) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var soundEnabled by remember { mutableStateOf(true) }
-    var vibrationEnabled by remember { mutableStateOf(true) }
+    var privateProfile by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("private_profile", false)) }
+    var allowMessages by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("allow_messages", true)) }
+    var showOnlineStatus by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("show_online_status", true)) }
+    var notificationsEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("notifications_enabled", true)) }
+    var soundEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("sound_enabled", true)) }
+    var vibrationEnabled by remember(profilePrefs) { mutableStateOf(profilePrefs.getBoolean("vibration_enabled", true)) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -985,12 +989,18 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(value = draftName, onValueChange = { draftName = it }, label = { Text("নাম") }, singleLine = true)
                     OutlinedTextField(value = draftBio, onValueChange = { draftBio = it }, label = { Text("পরিচিতি / Bio") }, minLines = 2)
-                    Text("এই পরিবর্তন আপাতত এই অ্যাপ সেশনে থাকবে। স্থায়ীভাবে সংরক্ষণের জন্য প্রোফাইল ব্যাকএন্ড লাগবে।", color = Muted, fontSize = 11.sp)
+                    Text("নাম ও পরিচিতি এই ডিভাইসে সংরক্ষিত হবে।", color = Muted, fontSize = 11.sp)
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (draftName.isNotBlank()) { profileName = draftName.trim(); profileBio = draftBio.trim(); showEdit = false }
+                    if (draftName.isNotBlank()) {
+                        profileName = draftName.trim()
+                        profileBio = draftBio.trim()
+                        profilePrefs.edit().putString("name", profileName).putString("bio", profileBio).apply()
+                        accountUser?.updateProfile(com.google.firebase.auth.UserProfileChangeRequest.Builder().setDisplayName(profileName).build())
+                        showEdit = false
+                    }
                 }) { Text("সংরক্ষণ") }
             },
             dismissButton = { TextButton(onClick = { showEdit = false }) { Text("বাতিল") } }
@@ -1004,17 +1014,17 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("প্রাইভেট প্রোফাইল", color = Color.White); Text("প্রোফাইলের দৃশ্যমানতা সীমিত", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it })
+                        Switch(checked = privateProfile, onCheckedChange = { privateProfile = it; profilePrefs.edit().putBoolean("private_profile", it).apply() })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("মেসেজ গ্রহণ", color = Color.White); Text("অন্যদের মেসেজ পাঠাতে অনুমতি", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it })
+                        Switch(checked = allowMessages, onCheckedChange = { allowMessages = it; profilePrefs.edit().putBoolean("allow_messages", it).apply() })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("অনলাইন স্ট্যাটাস", color = Color.White); Text("আপনি অনলাইনে আছেন কি না", color = Muted, fontSize = 10.sp) }
-                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it })
+                        Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it; profilePrefs.edit().putBoolean("show_online_status", it).apply() })
                     }
-                    Text("এগুলো আপাতত শুধু এই ডিভাইসের UI সেটিং। সার্ভার-ভিত্তিক প্রাইভেসি প্রয়োগ এখনো সংযুক্ত নয়।", color = Muted, fontSize = 10.sp)
+                    Text("সেটিংস এই ডিভাইসে সংরক্ষিত হবে। সার্ভারে প্রয়োগ করতে privacy backend প্রয়োজন হবে।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("ঠিক আছে") } }
@@ -1044,17 +1054,17 @@ fun ProfileScreen(modifier: Modifier = Modifier, walletCoins: Int, onClaimDailyR
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
+                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it; profilePrefs.edit().putBoolean("notifications_enabled", it).apply() })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it; profilePrefs.edit().putBoolean("sound_enabled", it).apply() })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it })
+                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it; profilePrefs.edit().putBoolean("vibration_enabled", it).apply() })
                     }
-                    Text("এই পছন্দগুলো আপাতত অ্যাপ সেশনে থাকে; স্থায়ী সেটিংস সংরক্ষণ পরবর্তী ধাপ।", color = Muted, fontSize = 10.sp)
+                    Text("এই পছন্দগুলো এই ডিভাইসে সংরক্ষিত হবে। নোটিফিকেশন ডেলিভারি ও সিস্টেম পারমিশন আলাদাভাবে সংযুক্ত করতে হবে।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showSettings = false }) { Text("ঠিক আছে") } }
