@@ -372,7 +372,6 @@ fun LiveRoomCard(room: VoiceRoom, onClick: () -> Unit) {
 @Composable
 fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioStatus: String, participants: List<RoomParticipant>, messages: List<String>, onSendChat: (String) -> Unit, onMic: () -> Unit, onLeave: () -> Unit) {
     var notice by remember { mutableStateOf("LiveKit-এর সদস্য তালিকা") }
-    var showGift by remember { mutableStateOf(false) }
     var showPk by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
     var chatText by remember { mutableStateOf("") }
@@ -441,9 +440,6 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             FilledTonalIconButton(onClick = { showChat = true }, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.Chat, "Chat")
             }
-            FilledTonalIconButton(onClick = { showGift = true }, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Default.CardGiftcard, "Gift")
-            }
             FilledTonalIconButton(onClick = { showPk = true }, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.Bolt, "PK")
             }
@@ -451,32 +447,9 @@ fun RoomScreen(room: VoiceRoom, micOn: Boolean, audioConnected: Boolean, audioSt
             Button(onClick = onLeave, colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Leave") }
         }
         Text(if (micOn) "মাইক চালু আছে" else "মাইক বন্ধ আছে", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
-        Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit • Gift/PK: কমিউনিটি ইভেন্ট ডেমো", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+        Text("রিয়েল-টাইম অডিও ও চ্যাট: LiveKit", color = Aqua, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
     }
 
-    if (showGift) {
-        var selectedGift by remember { mutableStateOf("🌹 Rose") }
-        AlertDialog(
-            onDismissRequest = { showGift = false }, containerColor = Panel,
-            title = { Text("Send a Gift", color = Color.White) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("রুমে পাঠানোর জন্য একটি গিফট বেছে নাও", color = Muted, fontSize = 12.sp)
-                    listOf("🌹 Rose • 10", "❤️ Heart • 20", "⭐ Star • 50").forEach { gift ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(if (selectedGift == gift.substringBefore(" •")) Panel2 else Panel2.copy(alpha = .45f))
-                            .clickable { selectedGift = gift.substringBefore(" •") }.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Text(gift, color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    Text("এটি এখন রুমে দৃশ্যমান ইভেন্ট পাঠাবে; কয়েন কাটা বা আয় জমা হবে না।", color = Color(0xFFFFC857), fontSize = 10.sp)
-                }
-            },
-            confirmButton = { TextButton(onClick = { onSendChat("🎁 $selectedGift গিফট পাঠালেন"); showGift = false; notice = "Gift event রুমে পাঠানো হয়েছে" }) { Text("Send demo") } },
-            dismissButton = { TextButton(onClick = { showGift = false }) { Text("বাতিল") } }
-        )
-    }
     if (showPk) {
         AlertDialog(
             onDismissRequest = { showPk = false }, containerColor = Panel,
