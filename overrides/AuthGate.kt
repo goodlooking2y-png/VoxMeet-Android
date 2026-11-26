@@ -48,10 +48,7 @@ fun VoxMeetAuthGate(content: @Composable () -> Unit) {
     val currentUser = user
     when {
         currentUser == null -> VoxMeetAuthScreen(auth)
-        currentUser.isEmailVerified || !currentUser.phoneNumber.isNullOrBlank() -> content()
-        else -> EmailVerificationScreen(auth, currentUser) { refreshedUser ->
-            user = refreshedUser
-        }
+        else -> content()
     }
 }
 
