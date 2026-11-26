@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- speech halo -->
+    <path android:fillColor="#00000000" android:strokeColor="#BFFFFFFF" android:strokeWidth="2.5" android:pathData="M12,48 C12,25 31,10 54,10 C77,10 96,25 96,48 C96,68 80,82 61,85 L47,96 L48,82 C27,80 12,66 12,48Z"/>
+    <!-- boy hair and face -->
+    <path android:fillColor="#18264F" android:pathData="M17,42 C15,27 25,17 39,18 C51,18 57,28 55,42 L51,55 L19,55Z"/>
+    <path android:fillColor="#F2B58F" android:pathData="M23,34 C23,25 29,21 38,21 C47,21 51,27 50,36 L48,50 C47,58 42,63 36,63 C29,63 24,57 23,49Z"/>
+    <path android:fillColor="#17213F" android:pathData="M21,35 C20,24 28,17 39,17 C48,17 55,23 55,34 C49,32 44,28 40,25 C35,31 29,34 21,35Z"/>
+    <path android:fillColor="#123F9B" android:pathData="M13,83 C15,68 24,61 36,61 C47,61 54,68 57,83 L57,91 L13,91Z"/>
+    <!-- girl hair and face -->
+    <path android:fillColor="#24143F" android:pathData="M57,41 C57,24 68,16 80,18 C94,20 99,33 96,51 L93,70 L61,70Z"/>
+    <path android:fillColor="#F6C3A4" android:pathData="M64,34 C65,25 71,21 80,21 C89,21 94,27 93,37 L91,51 C90,59 85,64 78,64 C71,64 66,58 65,50Z"/>
+    <path android:fillColor="#21143B" android:pathData="M62,38 C61,25 69,17 81,17 C91,18 97,26 96,39 C91,35 87,30 84,25 C78,32 70,36 62,38Z"/>
+    <path android:fillColor="#7026C8" android:pathData="M55,84 C58,68 67,62 79,62 C91,62 98,70 100,84 L100,91 L55,91Z"/>
+    <!-- headphones -->
+    <path android:fillColor="#00000000" android:strokeColor="#53E7FF" android:strokeWidth="4" android:pathData="M18,44 C18,24 26,13 39,13 C51,13 57,24 57,39"/>
+    <path android:fillColor="#102A72" android:pathData="M14,39 C14,35 17,32 21,32 L24,32 L24,53 L21,53 C17,53 14,50 14,46Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#F08BFF" android:strokeWidth="4" android:pathData="M57,39 C58,23 67,13 80,13 C93,13 100,24 100,43"/>
+    <path android:fillColor="#54208E" android:pathData="M94,35 L98,35 C102,35 104,38 104,42 L104,49 C104,53 101,56 97,56 L94,56Z"/>
+    <!-- central microphone and sound waves -->
+    <path android:fillColor="#FFFFFF" android:pathData="M49,52 C49,47 52,44 56,44 C60,44 63,47 63,52 L63,65 C63,70 60,73 56,73 C52,73 49,70 49,65Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="2.5" android:pathData="M45,62 C45,70 50,76 56,76 C62,76 67,70 67,62"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M54,75 L58,75 L58,82 L54,82Z M49,82 L63,82 L63,85 L49,85Z"/>
+    <path android:fillColor="#75F3FF" android:pathData="M34,57 L37,57 L37,69 L34,69Z M40,53 L43,53 L43,73 L40,73Z M69,53 L72,53 L72,73 L69,73Z M75,57 L78,57 L78,69 L75,69Z"/>
+</vector>
