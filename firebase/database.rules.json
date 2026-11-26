@@ -35,7 +35,7 @@
       ".read": "auth != null",
       "$targetUid": {
         "$followerUid": {
-          ".write": "auth != null && auth.uid === $followerUid && ((newData.val() === true && root.child('following').child($followerUid).child($targetUid).val() === true) || (!newData.exists() && !root.child('following').child($followerUid).child($targetUid).exists()))",
+          ".write": "auth != null && auth.uid === $followerUid && ((newData.val() === true && root.child('following').child($followerUid).child($targetUid).val() === true) || !newData.exists())",
           ".validate": "newData.val() === true"
         }
       }
