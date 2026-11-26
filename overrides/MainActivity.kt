@@ -665,21 +665,70 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 fun ProfileScreen(modifier: Modifier = Modifier) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
+    val database = remember { VoxMeetDatabase(auth) }
+    val scope = rememberCoroutineScope()
+
+    var profile by remember { mutableStateOf<VoxMeetProfile?>(null) }
+    var profileLoading by remember { mutableStateOf(true) }
+    var profileError by remember { mutableStateOf("") }
+    var followerCount by remember { mutableIntStateOf(0) }
+    var followingCount by remember { mutableIntStateOf(0) }
+
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showNotifications by remember { mutableStateOf(false) }
+    var notifications by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+
+    var draftName by remember { mutableStateOf("") }
+    var draftBio by remember { mutableStateOf("") }
+    var draftGender by remember { mutableStateOf("Male") }
     var profileName by remember { mutableStateOf("VoxMeet User") }
     var profileBio by remember { mutableStateOf("নতুন কমিউনিটি সদস্য") }
-    var draftName by remember { mutableStateOf(profileName) }
-    var draftBio by remember { mutableStateOf(profileBio) }
+
+    var searchId by remember { mutableStateOf("") }
+    var foundProfile by remember { mutableStateOf<VoxMeetProfile?>(null) }
+    var searchMessage by remember { mutableStateOf("") }
+    var isFollowingFound by remember { mutableStateOf(false) }
+    var searchBusy by remember { mutableStateOf(false) }
+    var actionBusy by remember { mutableStateOf(false) }
+
     var privateProfile by remember { mutableStateOf(false) }
     var allowMessages by remember { mutableStateOf(true) }
     var showOnlineStatus by remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var soundEnabled by remember { mutableStateOf(true) }
     var vibrationEnabled by remember { mutableStateOf(true) }
+
+    suspend fun refreshProfile() {
+        val loaded = database.getMyProfile()
+            ?: database.createOrLoadProfile(
+                name = accountUser?.displayName ?: accountUser?.email?.substringBefore("@") ?: "VoxMeet User"
+            )
+        profile = loaded
+        profileName = loaded.name.ifBlank { "VoxMeet User" }
+        profileBio = loaded.bio
+        followerCount = database.getFollowerCount(loaded.uid)
+        followingCount = database.getFollowingCount(loaded.uid)
+    }
+
+    LaunchedEffect(accountUser?.uid) {
+        if (accountUser != null) {
+            profileLoading = true
+            profileError = ""
+            try {
+                refreshProfile()
+            } catch (error: Exception) {
+                profileError = error.message ?: "Firebase profile load failed."
+            } finally {
+                profileLoading = false
+            }
+        } else {
+            profileLoading = false
+        }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -692,6 +741,16 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     Text("MY ACCOUNT", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
                     Text("My Profile", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                 }
+                IconButton(onClick = {
+                    scope.launch {
+                        try {
+                            notifications = database.getFollowNotifications()
+                            showNotifications = true
+                        } catch (error: Exception) {
+                            profileError = error.message ?: "নোটিফিকেশন লোড হয়নি"
+                        }
+                    }
+                }) { Icon(Icons.Default.NotificationsNone, "Notifications", tint = Color.White) }
                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings", tint = Color.White) }
             }
         }
@@ -707,15 +766,80 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text(profileBio, color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Text(profileBio.ifBlank { "VoxMeet community member" }, color = Color(0xFFE8DDF5), fontSize = 11.sp)
+                Spacer(Modifier.height(8.dp))
+                Text("VoxMeet ID: ${profile?.numericId ?: if (profileLoading) "লোড হচ্ছে..." else "তৈরি হয়নি"}", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(15.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    ProfileMetric("0", "Following")
-                    ProfileMetric("0", "Followers")
+                    ProfileMetric(followingCount.toString(), "Following")
+                    ProfileMetric(followerCount.toString(), "Followers")
                 }
+                if (profileLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Aqua, strokeWidth = 2.dp)
             }
         }
+        if (profileError.isNotBlank()) {
+            item { Text(profileError, color = Pink, fontSize = 11.sp) }
+        }
         item {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).padding(14.dp)) {
+                Text("Find people by VoxMeet ID", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = searchId, onValueChange = { searchId = it.filter(Char::isDigit).take(8) },
+                        modifier = Modifier.weight(1f), singleLine = true,
+                        placeholder = { Text("৮ সংখ্যার User ID") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = Violet, unfocusedBorderColor = Panel2, cursorColor = Pink)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = {
+                        scope.launch {
+                            searchBusy = true
+                            foundProfile = null
+                            searchMessage = ""
+                            try {
+                                val found = database.findProfileByNumericId(searchId)
+                                foundProfile = found
+                                if (found == null) searchMessage = "এই ID-তে কোনো ব্যবহারকারী পাওয়া যায়নি।"
+                                else isFollowingFound = database.isFollowing(found.uid)
+                            } catch (error: Exception) {
+                                searchMessage = error.message ?: "সার্চ করা যায়নি"
+                            } finally { searchBusy = false }
+                        }
+                    }, enabled = !searchBusy && searchId.length == 8) {
+                        if (searchBusy) CircularProgressIndicator(modifier = Modifier.size(17.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Search, "Search")
+                    }
+                }
+                if (searchMessage.isNotBlank()) Text(searchMessage, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
+                foundProfile?.let { target ->
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(target.name, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("ID: ${target.numericId}", color = Aqua, fontSize = 10.sp)
+                        }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    actionBusy = true
+                                    try {
+                                        if (isFollowingFound) database.unfollow(target.uid) else database.follow(target)
+                                        isFollowingFound = !isFollowingFound
+                                        refreshProfile()
+                                    } catch (error: Exception) {
+                                        searchMessage = error.message ?: "Follow action failed"
+                                    } finally { actionBusy = false }
+                                }
+                            },
+                            enabled = !actionBusy
+                        ) {
+                            Text(if (actionBusy) "..." else if (isFollowingFound) "Following" else "Follow")
+                        }
+                    }
+                }
+            }
         }
         item {
             Row(
@@ -731,56 +855,77 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
             }
         }
         item { Text("ACCOUNT & SUPPORT", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
-        item { ProfileMenuRow("✎", "Edit Profile", "নাম, ছবি ও পরিচিতি") { draftName = profileName; draftBio = profileBio; showEdit = true } }
+        item { ProfileMenuRow("✎", "Edit Profile", "নাম, লিঙ্গ ও পরিচিতি") {
+            draftName = profileName
+            draftBio = profileBio
+            draftGender = profile?.gender?.ifBlank { "Male" } ?: "Male"
+            showEdit = true
+        } }
         item { ProfileMenuRow("♧", "Privacy & Safety", "অ্যাকাউন্ট সুরক্ষা") { showPrivacy = true } }
         item { ProfileMenuRow("♧", "Help & Support", "সাহায্য, FAQ ও যোগাযোগ") { showHelp = true } }
         item { ProfileMenuRow("⚙", "Settings", "নোটিফিকেশন ও অ্যাপের পছন্দ") { showSettings = true } }
         item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
+
     if (showSignOutConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showSignOutConfirmation = false },
-            containerColor = Panel,
+        AlertDialog(onDismissRequest = { showSignOutConfirmation = false }, containerColor = Panel,
             title = { Text("Sign out?", color = Color.White) },
             text = { Text("আপনি কি VoxMeet অ্যাকাউন্ট থেকে বের হতে চান?", color = Muted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    auth.signOut()
-                    showSignOutConfirmation = false
-                }) {
-                    Text("লগআউট", color = Pink)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSignOutConfirmation = false }) {
-                    Text("থাক", color = Muted)
-                }
-            }
+            confirmButton = { TextButton(onClick = { auth.signOut(); showSignOutConfirmation = false }) { Text("লগআউট", color = Pink) } },
+            dismissButton = { TextButton(onClick = { showSignOutConfirmation = false }) { Text("থাক", color = Muted) } }
         )
     }
     if (showEdit) {
-        AlertDialog(
-            onDismissRequest = { showEdit = false }, containerColor = Panel,
+        AlertDialog(onDismissRequest = { showEdit = false }, containerColor = Panel,
             title = { Text("Edit Profile", color = Color.White) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedTextField(value = draftName, onValueChange = { draftName = it }, label = { Text("নাম") }, singleLine = true)
+                    Text("Gender", color = Muted, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = draftGender == "Male", onClick = { draftGender = "Male" }, label = { Text("Male") })
+                        FilterChip(selected = draftGender == "Female", onClick = { draftGender = "Female" }, label = { Text("Female") })
+                    }
                     OutlinedTextField(value = draftBio, onValueChange = { draftBio = it }, label = { Text("পরিচিতি / Bio") }, minLines = 2)
-                    Text("এই পরিবর্তন আপাতত এই অ্যাপ সেশনে থাকবে। স্থায়ীভাবে সংরক্ষণের জন্য প্রোফাইল ব্যাকএন্ড লাগবে।", color = Muted, fontSize = 11.sp)
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (draftName.isNotBlank()) { profileName = draftName.trim(); profileBio = draftBio.trim(); showEdit = false }
-                }) { Text("সংরক্ষণ") }
+                TextButton(enabled = draftName.isNotBlank() && !actionBusy, onClick = {
+                    scope.launch {
+                        actionBusy = true
+                        profileError = ""
+                        try {
+                            val saved = database.createOrLoadProfile(draftName.trim(), draftGender, profile?.photoUrl.orEmpty(), draftBio.trim())
+                            profile = saved
+                            profileName = saved.name
+                            profileBio = saved.bio
+                            showEdit = false
+                        } catch (error: Exception) {
+                            profileError = error.message ?: "প্রোফাইল সংরক্ষণ হয়নি"
+                        } finally { actionBusy = false }
+                    }
+                }) { Text(if (actionBusy) "সংরক্ষণ হচ্ছে..." else "সংরক্ষণ") }
             },
             dismissButton = { TextButton(onClick = { showEdit = false }) { Text("বাতিল") } }
         )
     }
+    if (showNotifications) {
+        AlertDialog(onDismissRequest = { showNotifications = false }, containerColor = Panel,
+            title = { Text("Follow Notifications", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (notifications.isEmpty()) Text("এখনো কোনো নোটিফিকেশন নেই।", color = Muted)
+                    notifications.take(12).forEach { item ->
+                        Text("নতুন Follow • User ID: ${item["senderUid"] ?: "Unknown"}", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("বন্ধ") } }
+        )
+    }
     if (showPrivacy) {
-        AlertDialog(
-            onDismissRequest = { showPrivacy = false }, containerColor = Panel,
+        AlertDialog(onDismissRequest = { showPrivacy = false }, containerColor = Panel,
             title = { Text("Privacy & Safety", color = Color.White) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -796,46 +941,28 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                         Column(Modifier.weight(1f)) { Text("অনলাইন স্ট্যাটাস", color = Color.White); Text("আপনি অনলাইনে আছেন কি না", color = Muted, fontSize = 10.sp) }
                         Switch(checked = showOnlineStatus, onCheckedChange = { showOnlineStatus = it })
                     }
-                    Text("এগুলো আপাতত শুধু এই ডিভাইসের UI সেটিং। সার্ভার-ভিত্তিক প্রাইভেসি প্রয়োগ এখনো সংযুক্ত নয়।", color = Muted, fontSize = 10.sp)
+                    Text("প্রাইভেসি সেটিংস সার্ভারে প্রয়োগের কাজ পরবর্তী ধাপে হবে।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("ঠিক আছে") } }
         )
     }
     if (showHelp) {
-        AlertDialog(
-            onDismissRequest = { showHelp = false }, containerColor = Panel,
+        AlertDialog(onDismissRequest = { showHelp = false }, containerColor = Panel,
             title = { Text("Help & Support", color = Color.White) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("VoxMeet সহায়তা", color = Aqua, fontWeight = FontWeight.Bold)
-                    Text("• অ্যাকাউন্টে প্রবেশ করতে সমস্যা হলে Email/Phone নম্বর যাচাই করুন।", color = Color.White, fontSize = 12.sp)
-                    Text("• Live Room-এ মাইক্রোফোন ব্যবহারে Android permission দিন।", color = Color.White, fontSize = 12.sp)
-                    Text("সাপোর্ট ইমেইল ও সরাসরি টিকিট ব্যবস্থা Backend ধাপে যুক্ত করা হবে।", color = Muted, fontSize = 11.sp)
-                }
-            },
+            text = { Text("• অ্যাকাউন্টে প্রবেশ করতে Email/Phone নম্বর যাচাই করুন।\n• Live Room-এ মাইক্রোফোন ব্যবহারে Android permission দিন।", color = Color.White) },
             confirmButton = { TextButton(onClick = { showHelp = false }) { Text("বন্ধ") } }
         )
     }
     if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false }, containerColor = Panel,
+        AlertDialog(onDismissRequest = { showSettings = false }, containerColor = Panel,
             title = { Text("Settings", color = Color.White) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it })
-                    }
-                    Text("এই পছন্দগুলো আপাতত অ্যাপ সেশনে থাকে; স্থায়ী সেটিংস সংরক্ষণ পরবর্তী ধাপ।", color = Muted, fontSize = 10.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) { Text("নোটিফিকেশন", color = Color.White, modifier = Modifier.weight(1f)); Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it }) }
+                    Row(verticalAlignment = Alignment.CenterVertically) { Text("সাউন্ড", color = Color.White, modifier = Modifier.weight(1f)); Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it }) }
+                    Row(verticalAlignment = Alignment.CenterVertically) { Text("ভাইব্রেশন", color = Color.White, modifier = Modifier.weight(1f)); Switch(checked = vibrationEnabled, onCheckedChange = { vibrationEnabled = it }) }
+                    Text("এই পছন্দগুলো এখনো ডিভাইসের সেশনে থাকে।", color = Muted, fontSize = 10.sp)
                 }
             },
             confirmButton = { TextButton(onClick = { showSettings = false }) { Text("ঠিক আছে") } }
