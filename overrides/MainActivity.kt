@@ -3,6 +3,7 @@ package com.rakib.voxmeet
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.net.Uri
 import java.util.UUID
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,6 +33,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.storage.FirebaseStorage
+import coil.compose.AsyncImage
+import kotlinx.coroutines.tasks.await
 
 private val Ink = Color(0xFF100D20)
 private val Panel = Color(0xFF211A35)
@@ -675,6 +679,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
     var followingCount by remember { mutableIntStateOf(0) }
 
     var showSignOutConfirmation by remember { mutableStateOf(false) }
+    var showAvatarPicker by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -701,6 +706,24 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
     var notificationsEnabled by remember { mutableStateOf(true) }
     var soundEnabled by remember { mutableStateOf(true) }
     var vibrationEnabled by remember { mutableStateOf(true) }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null && accountUser != null) {
+            scope.launch {
+                actionBusy = true
+                profileError = ""
+                try {
+                    val imageRef = FirebaseStorage.getInstance().reference.child("profilePhotos/${accountUser.uid}/profile.jpg")
+                    imageRef.putFile(uri).await()
+                    val downloadUrl = imageRef.downloadUrl.await().toString()
+                    database.updatePhotoUrl(downloadUrl)
+                    profile = profile?.copy(photoUrl = downloadUrl)
+                } catch (error: Exception) {
+                    profileError = "ছবি আপলোড হয়নি: ${error.localizedMessage ?: "Storage সেটিংস যাচাই করুন"}"
+                } finally { actionBusy = false }
+            }
+        }
+    }
 
     suspend fun refreshProfile() {
         val loaded = database.getMyProfile()
@@ -761,10 +784,27 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(Modifier.size(86.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
-                    Text(profileName.take(1).uppercase(), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                Box(Modifier.size(100.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
+                    val photo = profile?.photoUrl.orEmpty()
+                    if (photo.startsWith("https://")) {
+                        AsyncImage(model = photo, contentDescription = "Profile photo", modifier = Modifier.fillMaxSize().clip(CircleShape))
+                    } else {
+                        Text(if (photo.startsWith("avatar:")) photo.removePrefix("avatar:") else profileName.take(1).uppercase(),
+                            color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { photoPicker.launch("image/*") }, enabled = !actionBusy) {
+                        Icon(Icons.Default.PhotoLibrary, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp)); Text("ছবি বদলান", fontSize = 11.sp)
+                    }
+                    OutlinedButton(onClick = { showAvatarPicker = true }, enabled = !actionBusy) {
+                        Icon(Icons.Default.Face, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp)); Text("Avatar", fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
                 Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                 Text(profileBio.ifBlank { "VoxMeet community member" }, color = Color(0xFFE8DDF5), fontSize = 11.sp)
                 Spacer(Modifier.height(8.dp))
@@ -866,6 +906,37 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item { ProfileMenuRow("⚙", "Settings", "নোটিফিকেশন ও অ্যাপের পছন্দ") { showSettings = true } }
         item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
+    }
+
+
+    if (showAvatarPicker) {
+        val avatars = listOf("👨🏻‍💻", "🎧", "😊", "🌟", "🦁", "🌙", "🔥", "🌸", "🧑🏻", "👩🏻", "😎", "💜")
+        AlertDialog(onDismissRequest = { showAvatarPicker = false }, containerColor = Panel,
+            title = { Text("আপনার Avatar বেছে নিন", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("পছন্দের অবতারে চাপ দিন।", color = Muted, fontSize = 12.sp)
+                    avatars.chunked(4).forEach { line ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            line.forEach { avatar ->
+                                Text(avatar, fontSize = 30.sp, modifier = Modifier.clip(CircleShape).background(Panel2).clickable {
+                                    scope.launch {
+                                        actionBusy = true
+                                        try {
+                                            database.updatePhotoUrl("avatar:$avatar")
+                                            profile = profile?.copy(photoUrl = "avatar:$avatar")
+                                            showAvatarPicker = false
+                                        } catch (error: Exception) { profileError = error.message ?: "Avatar সংরক্ষণ হয়নি" }
+                                        finally { actionBusy = false }
+                                    }
+                                }.padding(9.dp))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAvatarPicker = false }) { Text("বন্ধ") } }
+        )
     }
 
     if (showSignOutConfirmation) {
