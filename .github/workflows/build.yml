@@ -23,6 +23,24 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-mobile-cloud-build.zip
 
+      - name: Apply VoxMeet launcher icon
+        run: |
+          mkdir -p VoxMeet/app/src/main/res
+          cp -R branding/res/. VoxMeet/app/src/main/res/
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("VoxMeet/app/src/main/AndroidManifest.xml")
+          if not manifest.is_file():
+              raise SystemExit("AndroidManifest.xml not found")
+          text = manifest.read_text()
+          text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher"')
+          if 'android:icon=' not in text:
+              raise SystemExit("Could not find application android:icon attribute")
+          text = text.replace('android:roundIcon="@mipmap/ic_launcher_round"', 'android:roundIcon="@mipmap/ic_launcher"')
+          manifest.write_text(text)
+          print("VoxMeet launcher icon resources applied")
+          PY
+
       - name: Set Java and Kotlin targets in the Android app module
         working-directory: VoxMeet
         run: |
