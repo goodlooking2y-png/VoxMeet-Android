@@ -88,27 +88,38 @@ class VoxMeetDatabase(
 
         val notificationId = root.child("notifications").child(target.uid).push().key
             ?: error("Could not create notification ID.")
-        val updates = mapOf<String, Any>(
-            "following/$uid/${target.uid}" to true,
-            "followers/${target.uid}/$uid" to true,
-            "notifications/${target.uid}/$notificationId" to mapOf(
-                "senderUid" to uid,
-                "type" to "follow",
-                "createdAt" to System.currentTimeMillis(),
-                "read" to false
-            )
-        )
-        root.updateChildren(updates).await()
+        val followingRef = root.child("following").child(uid).child(target.uid)
+        val followerRef = root.child("followers").child(target.uid).child(uid)
+        followingRef.setValue(true).await()
+        try {
+            followerRef.setValue(true).await()
+            root.child("notifications").child(target.uid).child(notificationId).setValue(
+                mapOf(
+                    "senderUid" to uid,
+                    "type" to "follow",
+                    "createdAt" to System.currentTimeMillis(),
+                    "read" to false
+                )
+            ).await()
+        } catch (error: Exception) {
+            try { followerRef.removeValue().await() } catch (_: Exception) { }
+            try { followingRef.removeValue().await() } catch (_: Exception) { }
+            throw error
+        }
     }
 
     suspend fun unfollow(targetUid: String) {
         val uid = requireUid()
         require(uid != targetUid) { "You cannot unfollow yourself." }
-        val updates = mapOf<String, Any?>(
-            "following/$uid/$targetUid" to null,
-            "followers/$targetUid/$uid" to null
-        )
-        root.updateChildren(updates).await()
+        val followingRef = root.child("following").child(uid).child(targetUid)
+        val followerRef = root.child("followers").child(targetUid).child(uid)
+        followerRef.removeValue().await()
+        try {
+            followingRef.removeValue().await()
+        } catch (error: Exception) {
+            try { followerRef.setValue(true).await() } catch (_: Exception) { }
+            throw error
+        }
     }
 
     suspend fun getFollowerCount(uid: String): Int =
