@@ -61,6 +61,11 @@ class VoxMeetDatabase(
         return root.child("publicProfiles").child(uid).get().await().toProfile(uid)
     }
 
+    suspend fun updatePhotoUrl(photoUrl: String) {
+        val uid = requireUid()
+        root.child("publicProfiles").child(uid).child("photoUrl").setValue(photoUrl).await()
+    }
+
     suspend fun findProfileByNumericId(numericId: String): VoxMeetProfile? {
         val cleanId = numericId.trim()
         if (cleanId.isEmpty() || cleanId.any { !it.isDigit() }) return null
