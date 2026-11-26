@@ -58,8 +58,6 @@ fun VoxMeetApp() {
     var audioConnected by remember { mutableStateOf(false) }
     var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
-    var showWallet by remember { mutableStateOf(false) }
-    var walletCoins by remember { mutableIntStateOf(120) }
     val context = LocalContext.current
     val audioManager = remember { LiveKitAudioManager(context) }
     val roomParticipants by audioManager.participants.collectAsState()
@@ -189,13 +187,12 @@ fun VoxMeetApp() {
                     }
                 ) { padding ->
                     when (selectedTab) {
-                        0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true }, { showWallet = true }, walletCoins)
+                        0 -> HomeScreen(rooms, Modifier.padding(padding), { activeRoom = it }, { showCreate = true })
                         1 -> DiscoverScreen(rooms, Modifier.padding(padding), { activeRoom = it })
                         2 -> MessagesScreen(Modifier.padding(padding))
                         else -> ProfileScreen(Modifier.padding(padding))
                     }
                 }
-                if (showWallet) WalletDialog(coins = walletCoins, onDismiss = { showWallet = false })
                 if (showCreate) CreateRoomDialog(
                     onDismiss = { showCreate = false },
                     onCreate = { name ->
@@ -209,7 +206,7 @@ fun VoxMeetApp() {
 }
 
 @Composable
-fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit, onGoLive: () -> Unit, onWallet: () -> Unit, walletCoins: Int) {
+fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit, onGoLive: () -> Unit) {
     var selectedFeed by remember { mutableStateOf("Popular") }
     var selectedCategory by remember { mutableStateOf("For You") }
     val categories = listOf("For You", "বাংলা", "Music", "Chat", "PK")
@@ -232,8 +229,6 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
                     Text("Live your moment", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
                     Text("তোমার কমিউনিটি, তোমার গল্প", color = Muted, fontSize = 10.sp)
                 }
-                WalletPill(walletCoins, onWallet)
-                Spacer(Modifier.width(5.dp))
                 IconButton(onClick = { }) {
                     Icon(Icons.Default.NotificationsNone, "Notifications", tint = Color.White)
                 }
@@ -317,8 +312,7 @@ fun HomeScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (V
     }
 }
 
-@Composable
-fun WalletPill(walletCoins: Int, onWallet: () -> Unit) {
+
     Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Panel).clickable(onClick = onWallet).padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Diamond, null, tint = Color(0xFFFFC857), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
@@ -329,8 +323,7 @@ fun WalletPill(walletCoins: Int, onWallet: () -> Unit) {
 }
 
 
-@Composable
-fun WalletDialog(coins: Int, onDismiss: () -> Unit) {
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Panel,
@@ -727,7 +720,6 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
     var showSignOutConfirmation by remember { mutableStateOf(false) }
-    var showWallet by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
@@ -774,20 +766,10 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     ProfileMetric("0", "Following")
                     ProfileMetric("0", "Followers")
-                    ProfileMetric("0", "Gifts")
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).clickable { showWallet = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Diamond, null, tint = Color(0xFFFFC857), modifier = Modifier.size(28.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("My Wallet", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("Coins ও লেনদেনের তথ্য", color = Muted, fontSize = 11.sp)
-                }
-                Text("120 coins  ›", color = Aqua, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
         }
         item {
             Row(
@@ -810,7 +792,6 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
         item { ProfileMenuRow("⇥", "Sign out", "এই ডিভাইস থেকে অ্যাকাউন্ট লগআউট") { showSignOutConfirmation = true } }
         item { Text("VoxMeet • Version 1.0 • Connect, share and shine", color = Color.Gray, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) }
     }
-    if (showWallet) WalletDialog(coins = 120, onDismiss = { showWallet = false })
     if (showSignOutConfirmation) {
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
@@ -884,7 +865,6 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     Text("VoxMeet সহায়তা", color = Aqua, fontWeight = FontWeight.Bold)
                     Text("• অ্যাকাউন্টে প্রবেশ করতে সমস্যা হলে Email/Phone নম্বর যাচাই করুন।", color = Color.White, fontSize = 12.sp)
                     Text("• Live Room-এ মাইক্রোফোন ব্যবহারে Android permission দিন।", color = Color.White, fontSize = 12.sp)
-                    Text("• Coins ও পেমেন্ট এখনো ডেমো; বাস্তব লেনদেন করবেন না।", color = Color.White, fontSize = 12.sp)
                     Text("সাপোর্ট ইমেইল ও সরাসরি টিকিট ব্যবস্থা Backend ধাপে যুক্ত করা হবে।", color = Muted, fontSize = 11.sp)
                 }
             },
