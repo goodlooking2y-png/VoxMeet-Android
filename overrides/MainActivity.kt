@@ -917,7 +917,36 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (notifications.isEmpty()) Text("এখনো কোনো নোটিফিকেশন নেই।", color = Muted)
                     notifications.take(12).forEach { item ->
-                        Text("নতুন Follow • User ID: ${item["senderUid"] ?: "Unknown"}", color = Color.White, fontSize = 12.sp)
+                        val senderUid = item["senderUid"] as? String
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(Panel2).clickable {
+                                    if (!senderUid.isNullOrBlank()) {
+                                        scope.launch {
+                                            try {
+                                                foundProfile = database.findProfileByUid(senderUid)
+                                                val target = foundProfile
+                                                if (target != null) {
+                                                    isFollowingFound = database.isFollowing(target.uid)
+                                                    searchId = target.numericId
+                                                    showNotifications = false
+                                                }
+                                            } catch (error: Exception) {
+                                                profileError = error.message ?: "প্রোফাইল খোলা যায়নি"
+                                            }
+                                        }
+                                    }
+                                }.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Person, null, tint = Aqua)
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("নতুন Follow", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("প্রোফাইল দেখতে চাপ দিন • ${senderUid ?: "Unknown"}", color = Muted, fontSize = 9.sp)
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = Muted)
+                        }
                     }
                 }
             },
