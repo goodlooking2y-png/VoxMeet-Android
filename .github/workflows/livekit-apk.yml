@@ -65,7 +65,7 @@ jobs:
               if start < 0 or pos < 0:
                   raise SystemExit("Dependency repositories block not found")
               pos += len("repositories {")
-              text = text[:pos] + nl + '        maven("https://jitpack.io")' + text[pos:]
+              text = text[:pos] + nl + '        maven("https://jitpack.io")' + nl + text[pos:]
               settings.write_text(text)
           manifest = root / "app/src/main/AndroidManifest.xml"
           text = manifest.read_text()
