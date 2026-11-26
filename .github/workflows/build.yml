@@ -21,7 +21,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract source
-        run: unzip -q VoxMeet-mobile-cloud-build.zip
+        run: unzip -q VoxMeet-profile-avatar-update.zip
 
       - name: Apply VoxMeet launcher icon
         run: |
