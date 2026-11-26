@@ -40,6 +40,21 @@
         }
       }
     },
+    "socialPosts": {
+      ".read": "auth != null",
+      "$postId": {
+        ".write": "auth != null && newData.exists() && newData.child('uid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['id', 'uid', 'name', 'caption', 'mediaUrl', 'mediaType', 'createdAt'])",
+        "id": { ".validate": "newData.isString() && newData.val() === $postId" },
+        "uid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "name": { ".validate": "newData.isString() && newData.val().length <= 60" },
+        "caption": { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "mediaUrl": { ".validate": "newData.isString() && newData.val().length <= 2048 && newData.val().beginsWith('https://')" },
+        "mediaType": { ".validate": "newData.isString() && (newData.val() === 'image' || newData.val() === 'video')" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
     "notifications": {
       "$recipientUid": {
         ".read": "auth != null && auth.uid === $recipientUid",
