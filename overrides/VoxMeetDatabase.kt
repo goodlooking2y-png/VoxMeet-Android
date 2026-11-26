@@ -69,6 +69,11 @@ class VoxMeetDatabase(
         return root.child("publicProfiles").child(uid).get().await().toProfile(uid)
     }
 
+    suspend fun findProfileByUid(uid: String): VoxMeetProfile? {
+        if (uid.isBlank()) return null
+        return root.child("publicProfiles").child(uid).get().await().toProfile(uid)
+    }
+
     suspend fun isFollowing(targetUid: String): Boolean {
         val uid = requireUid()
         if (uid == targetUid) return false
