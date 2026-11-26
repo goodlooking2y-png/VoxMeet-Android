@@ -24,6 +24,7 @@ jobs:
           cp overrides/MainActivity.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt
           cp overrides/LiveKitAudioManager.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LiveKitAudioManager.kt
           cp overrides/AuthGate.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/AuthGate.kt
+          cp overrides/VoxMeetDatabase.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/VoxMeetDatabase.kt
           cp firebase/google-services.json VoxMeet/app/google-services.json
           python3 - <<'PY'
           from pathlib import Path
