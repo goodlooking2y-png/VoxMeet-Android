@@ -1,6 +1,7 @@
 package com.rakib.voxmeet
 
 import android.Manifest
+import android.content.Intent
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -555,59 +556,169 @@ fun PlaceholderScreen(title: String, subtitle: String, modifier: Modifier = Modi
 }
 
 
+data class SocialPost(
+    val id: String, val uid: String, val name: String, val caption: String,
+    val mediaUrl: String, val mediaType: String, val createdAt: Long
+)
+
 @Composable
 fun DiscoverScreen(rooms: List<VoiceRoom>, modifier: Modifier = Modifier, onJoin: (VoiceRoom) -> Unit) {
+    val context = LocalContext.current
+    val auth = remember { FirebaseAuth.getInstance() }
+    val root = remember { com.google.firebase.database.FirebaseDatabase.getInstance(VoxMeetDatabase.DATABASE_URL).reference }
+    val storage = remember { FirebaseStorage.getInstance() }
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("সব") }
+    var caption by remember { mutableStateOf("") }
+    var posts by remember { mutableStateOf<List<SocialPost>>(emptyList()) }
+    var loadingPosts by remember { mutableStateOf(true) }
+    var uploading by remember { mutableStateOf(false) }
+    var postError by remember { mutableStateOf("") }
     val filters = listOf("সব", "বাংলা", "Music", "Community", "Chill")
     val filtered = rooms.filter { room ->
         (query.isBlank() || room.title.contains(query, true) || room.topic.contains(query, true) || room.host.contains(query, true)) &&
             (category == "সব" || room.tag.equals(category, true) || room.topic.contains(category, true))
     }
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
+
+    fun uploadSelectedMedia(uri: Uri?, mediaType: String) {
+        if (uri == null) return
+        val user = auth.currentUser
+        if (user == null) { postError = "পোস্ট করতে আগে অ্যাকাউন্টে লগইন করুন।"; return }
+        scope.launch {
+            uploading = true
+            postError = ""
+            try {
+                val postId = root.child("socialPosts").push().key ?: error("পোস্ট ID তৈরি হয়নি")
+                val extension = if (mediaType == "video") "mp4" else "jpg"
+                val mediaRef = storage.reference.child("socialPosts/" + user.uid + "/" + postId + "." + extension)
+                mediaRef.putFile(uri).await()
+                val mediaUrl = mediaRef.downloadUrl.await().toString()
+                val postCaption = caption.trim()
+                val postName = user.displayName ?: user.email?.substringBefore("@") ?: "VoxMeet User"
+                val created = System.currentTimeMillis()
+                val postData = mapOf("id" to postId, "uid" to user.uid, "name" to postName,
+                    "caption" to postCaption, "mediaUrl" to mediaUrl, "mediaType" to mediaType, "createdAt" to created)
+                root.child("socialPosts").child(postId).setValue(postData).await()
+                caption = ""
+                posts = listOf(SocialPost(postId, user.uid, postName, postCaption, mediaUrl, mediaType, created)) + posts
+            } catch (error: Exception) {
+                postError = "আপলোড হয়নি: " + (error.localizedMessage ?: "Firebase Storage ও Database Rules পরীক্ষা করুন")
+            } finally { uploading = false }
+        }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uploadSelectedMedia(uri, "image") }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uploadSelectedMedia(uri, "video") }
+
+    LaunchedEffect(Unit) {
+        try {
+            val snapshot = root.child("socialPosts").get().await()
+            posts = snapshot.children.mapNotNull { child ->
+                val uid = child.child("uid").getValue(String::class.java) ?: return@mapNotNull null
+                val url = child.child("mediaUrl").getValue(String::class.java) ?: return@mapNotNull null
+                SocialPost(child.key ?: return@mapNotNull null, uid,
+                    child.child("name").getValue(String::class.java) ?: "VoxMeet User",
+                    child.child("caption").getValue(String::class.java).orEmpty(), url,
+                    child.child("mediaType").getValue(String::class.java) ?: "image",
+                    child.child("createdAt").getValue(Long::class.java) ?: 0L)
+            }.sortedByDescending { it.createdAt }
+        } catch (error: Exception) {
+            postError = "পোস্ট লোড হয়নি: " + (error.localizedMessage ?: "Database Rules পরীক্ষা করুন")
+        } finally { loadingPosts = false }
+    }
+
+    LazyColumn(modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp, 14.dp, 16.dp, 100.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text("DISCOVER", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
             Text("নতুন মানুষ, নতুন গল্প", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-            Text("তোমার পছন্দের লাইভ কমিউনিটি খুঁজে নাও", color = Muted, fontSize = 12.sp)
+            Text("রিলস, ছবি, ভিডিও এবং লাইভ কমিউনিটি", color = Muted, fontSize = 12.sp)
         }
         item {
-            OutlinedTextField(
-                value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).padding(13.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("কিছু শেয়ার করুন", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(value = caption, onValueChange = { caption = it.take(500) },
+                    modifier = Modifier.fillMaxWidth(), minLines = 2,
+                    placeholder = { Text("আপনার ছবি বা ভিডিওর সঙ্গে কিছু লিখুন...", color = Muted) },
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = Violet, unfocusedBorderColor = Panel2, cursorColor = Pink,
+                        focusedContainerColor = Ink, unfocusedContainerColor = Ink))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { imagePicker.launch("image/*") }, enabled = !uploading, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.PhotoLibrary, null, tint = Aqua); Spacer(Modifier.width(5.dp)); Text("ছবি পোস্ট")
+                    }
+                    OutlinedButton(onClick = { videoPicker.launch("video/*") }, enabled = !uploading, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.VideoLibrary, null, tint = Pink); Spacer(Modifier.width(5.dp)); Text("ভিডিও / রিলস")
+                    }
+                }
+                if (uploading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Aqua, strokeWidth = 2.dp)
+                    Text("মিডিয়া আপলোড হচ্ছে...", color = Aqua, fontSize = 11.sp)
+                }
+                if (postError.isNotBlank()) Text(postError, color = Pink, fontSize = 11.sp)
+                Text("ছবি ও ভিডিও Firebase Storage-এ সংরক্ষণ হবে।", color = Muted, fontSize = 10.sp)
+            }
+        }
+        item {
+            OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, placeholder = { Text("রুম বা বিষয় খুঁজুন", color = Muted) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Aqua) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                    focusedBorderColor = Violet, unfocusedBorderColor = Panel2,
-                    cursorColor = Pink, focusedContainerColor = Panel, unfocusedContainerColor = Panel
-                )
-            )
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedBorderColor = Violet, unfocusedBorderColor = Panel2, cursorColor = Pink,
+                    focusedContainerColor = Panel, unfocusedContainerColor = Panel))
         }
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 filters.forEach { filter ->
                     val selected = category == filter
                     Text(filter, color = if (selected) Color.White else Muted, fontSize = 12.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(22.dp))
-                            .background(if (selected) Violet else Panel).clickable { category = filter }
-                            .padding(horizontal = 15.dp, vertical = 9.dp))
+                        modifier = Modifier.clip(RoundedCornerShape(22.dp)).background(if (selected) Violet else Panel)
+                            .clickable { category = filter }.padding(horizontal = 15.dp, vertical = 9.dp))
+                }
+            }
+        }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DiscoverStat("LIVE ROOMS", rooms.size.toString(), "●", Pink, Modifier.weight(1f))
+            DiscoverStat("POSTS", posts.size.toString(), "✦", Aqua, Modifier.weight(1f))
+        } }
+        item { Text("ছবি ও রিলস", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+        if (loadingPosts) item { CircularProgressIndicator(color = Aqua, modifier = Modifier.size(24.dp)) }
+        else if (posts.isEmpty()) item { Text("এখনো কোনো পোস্ট নেই। প্রথম ছবি বা ভিডিওটি আপনিই শেয়ার করুন!", color = Muted, fontSize = 12.sp) }
+        else items(posts, key = { it.id }) { post ->
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Violet, Pink))),
+                        contentAlignment = Alignment.Center) { Text(post.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(post.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(if (post.mediaType == "video") "ভিডিও / রিলস" else "ছবি পোস্ট", color = Aqua, fontSize = 10.sp)
+                    }
+                }
+                if (post.caption.isNotBlank()) Text(post.caption, color = Color.White, fontSize = 13.sp)
+                if (post.mediaType == "image") AsyncImage(model = post.mediaUrl, contentDescription = "Community photo post",
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 360.dp).clip(RoundedCornerShape(12.dp)))
+                else Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Panel2).clickable {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(post.mediaUrl), "video/*")
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    } catch (error: Exception) { postError = "ভিডিও চালানো যায়নি: " + error.localizedMessage }
+                }.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.PlayCircle, null, tint = Pink, modifier = Modifier.size(34.dp))
+                    Spacer(Modifier.width(9.dp)); Text("ভিডিও / রিলস চালাতে চাপ দিন", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DiscoverStat("LIVE ROOMS", rooms.size.toString(), "●", Pink, Modifier.weight(1f))
-                DiscoverStat("COMMUNITY", "24/7", "✦", Aqua, Modifier.weight(1f))
-            }
+            Text("LIVE ROOMS", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+            Text("লাইভ আড্ডায় যোগ দিন", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
         }
-        if (filtered.isEmpty()) {
-            item { Text("কোনো রুম পাওয়া যায়নি। অন্য নামে খুঁজে দেখুন।", color = Muted, modifier = Modifier.padding(18.dp)) }
-        } else {
-            items(filtered) { room -> LiveRoomCard(room) { onJoin(room) } }
-        }
+        if (filtered.isEmpty()) item { Text("কোনো রুম পাওয়া যায়নি। অন্য নামে খুঁজে দেখুন।", color = Muted, modifier = Modifier.padding(18.dp)) }
+        else items(filtered) { room -> LiveRoomCard(room) { onJoin(room) } }
     }
 }
 
