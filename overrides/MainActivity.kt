@@ -1,12 +1,14 @@
 package com.rakib.voxmeet
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.net.Uri
 import java.util.UUID
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -62,6 +64,7 @@ fun VoxMeetApp() {
     var audioConnected by remember { mutableStateOf(false) }
     var audioStatus by remember { mutableStateOf("রুমে ঢুকলে অডিও সংযোগ হবে") }
     var showCreate by remember { mutableStateOf(false) }
+    var showExitConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val audioManager = remember { LiveKitAudioManager(context) }
     val roomParticipants by audioManager.participants.collectAsState()
@@ -129,6 +132,16 @@ fun VoxMeetApp() {
             micOn = false
             audioStatus = "রুম থেকে বের হয়েছেন"
             activeRoom = null
+        }
+    }
+
+    BackHandler {
+        when {
+            showExitConfirmation -> showExitConfirmation = false
+            showCreate -> showCreate = false
+            activeRoom != null -> leaveActiveRoom()
+            selectedTab != 0 -> selectedTab = 0
+            else -> showExitConfirmation = true
         }
     }
 
@@ -202,6 +215,24 @@ fun VoxMeetApp() {
                     onCreate = { name ->
                         val room = VoiceRoom(name, "তোমার নতুন লাইভ রুম", 1, "You", "New")
                         rooms.add(0, room); showCreate = false; activeRoom = room
+                    }
+                )
+            }
+            if (showExitConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { showExitConfirmation = false },
+                    containerColor = Panel,
+                    title = { Text("VoxMeet থেকে বের হবেন?", color = Color.White) },
+                    text = { Text("আপনি কি অ্যাপটি বন্ধ করতে চান?", color = Muted) },
+                    confirmButton = {
+                        TextButton(onClick = { (context as? Activity)?.finish(); showExitConfirmation = false }) {
+                            Text("হ্যাঁ, বের হব", color = Pink)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showExitConfirmation = false }) {
+                            Text("না, থাকব", color = Aqua)
+                        }
                     }
                 )
             }
