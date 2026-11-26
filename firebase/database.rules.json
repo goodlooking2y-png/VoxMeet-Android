@@ -1,0 +1,53 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "publicProfiles": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && newData.exists() && newData.child('uid').val() === $uid && newData.child('numericId').isString() && root.child('userIds').child(newData.child('numericId').val()).val() === $uid",
+        ".validate": "newData.hasChildren(['uid', 'numericId', 'name', 'gender', 'photoUrl', 'bio'])",
+        "uid": { ".validate": "newData.isString() && newData.val() === $uid" },
+        "numericId": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{8}$/)" },
+        "name": { ".validate": "newData.isString() && newData.val().length <= 60" },
+        "gender": { ".validate": "newData.isString() && (newData.val() === '' || newData.val() === 'Male' || newData.val() === 'Female')" },
+        "photoUrl": { ".validate": "newData.isString() && newData.val().length <= 2048" },
+        "bio": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "$other": { ".validate": false }
+      }
+    },
+    "userIds": {
+      ".read": "auth != null",
+      "$numericId": {
+        ".write": "auth != null && $numericId.matches(/^[0-9]{8}$/) && newData.isString() && newData.val() === auth.uid && (!data.exists() || data.val() === auth.uid)"
+      }
+    },
+    "following": {
+      ".read": "auth != null",
+      "$followerUid": {
+        ".write": "auth != null && auth.uid === $followerUid",
+        "$targetUid": {
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "followers": {
+      ".read": "auth != null",
+      "$targetUid": {
+        "$followerUid": {
+          ".write": "auth != null && auth.uid === $followerUid && ((newData.val() === true && root.child('following').child($followerUid).child($targetUid).val() === true) || (!newData.exists() && !root.child('following').child($followerUid).child($targetUid).exists()))",
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "notifications": {
+      "$recipientUid": {
+        ".read": "auth != null && auth.uid === $recipientUid",
+        "$notificationId": {
+          ".write": "auth != null && ((newData.exists() && newData.child('senderUid').val() === auth.uid && newData.child('type').val() === 'follow' && root.child('following').child(auth.uid).child($recipientUid).val() === true) || (auth.uid === $recipientUid && !newData.exists()))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['senderUid', 'type', 'createdAt', 'read']) && newData.child('senderUid').isString() && newData.child('type').val() === 'follow' && newData.child('createdAt').isNumber() && newData.child('read').isBoolean() && newData.child('senderUid').val() === auth.uid)"
+        }
+      }
+    }
+  }
+}
