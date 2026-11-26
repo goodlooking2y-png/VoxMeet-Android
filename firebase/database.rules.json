@@ -27,7 +27,7 @@
       "$followerUid": {
         ".write": "auth != null && auth.uid === $followerUid",
         "$targetUid": {
-          ".validate": "newData.val() === true"
+          ".validate": "newData.val() === true && $targetUid !== $followerUid && root.child('publicProfiles').child($targetUid).exists()"
         }
       }
     },
