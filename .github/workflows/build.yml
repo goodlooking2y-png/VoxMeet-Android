@@ -40,8 +40,13 @@ jobs:
               s = s.replace('    id("org.jetbrains.kotlin.plugin.compose")', '    id("org.jetbrains.kotlin.plugin.compose")\n' + google_plugin, 1)
           firebase_bom = '    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))'
           firebase_auth = '    implementation("com.google.firebase:firebase-auth")'
+          firebase_storage = '    implementation("com.google.firebase:firebase-storage")'
+          coil_compose = '    implementation("io.coil-kt:coil-compose:2.7.0")'
           if firebase_bom not in s:
-              s = s.replace("dependencies {", "dependencies {" + chr(10) + firebase_bom + chr(10) + firebase_auth, 1)
+              s = s.replace("dependencies {", "dependencies {" + chr(10) + firebase_bom, 1)
+          for dependency in (firebase_auth, firebase_storage, coil_compose):
+              if dependency not in s:
+                  s = s.replace("dependencies {", "dependencies {" + chr(10) + dependency, 1)
           root_gradle = Path("VoxMeet/build.gradle.kts")
           root_s = root_gradle.read_text()
           root_plugin = '    id("com.google.gms.google-services") version "4.4.2" apply false'

@@ -2,6 +2,7 @@ package com.rakib.voxmeet
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import java.util.UUID
 import androidx.activity.ComponentActivity
@@ -28,10 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.storage.FirebaseStorage
+import coil.compose.AsyncImage
 
 private val Ink = Color(0xFF100D20)
 private val Panel = Color(0xFF211A35)
@@ -726,6 +731,55 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 fun ProfileScreen(modifier: Modifier = Modifier) {
     val auth = remember { FirebaseAuth.getInstance() }
     val accountUser = auth.currentUser
+    var profilePhotoUrl by remember(accountUser?.uid) {
+        mutableStateOf(accountUser?.photoUrl?.toString())
+    }
+    var localPhotoUri by remember(accountUser?.uid) { mutableStateOf<Uri?>(null) }
+    var uploadingPhoto by remember { mutableStateOf(false) }
+    var photoMessage by remember { mutableStateOf("") }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedUri ->
+        if (selectedUri != null) {
+            val currentUser = auth.currentUser
+            if (currentUser == null) {
+                photoMessage = "ছবি পরিবর্তনের আগে অ্যাকাউন্টে লগইন করুন।"
+            } else {
+                localPhotoUri = selectedUri
+                uploadingPhoto = true
+                photoMessage = "প্রোফাইল ছবি আপলোড হচ্ছে..."
+                val photoRef = FirebaseStorage.getInstance().reference
+                    .child("profilePhotos/${currentUser.uid}/profile.jpg")
+                photoRef.putFile(selectedUri)
+                    .continueWithTask { task ->
+                        if (!task.isSuccessful) {
+                            throw task.exception ?: IllegalStateException("ছবি আপলোড করা যায়নি।")
+                        }
+                        photoRef.downloadUrl
+                    }
+                    .addOnSuccessListener { downloadUri ->
+                        val request = UserProfileChangeRequest.Builder()
+                            .setPhotoUri(downloadUri)
+                            .build()
+                        currentUser.updateProfile(request).addOnCompleteListener { update ->
+                            uploadingPhoto = false
+                            if (update.isSuccessful) {
+                                profilePhotoUrl = downloadUri.toString()
+                                localPhotoUri = null
+                                photoMessage = "প্রোফাইল ছবি সফলভাবে সংরক্ষিত হয়েছে।"
+                            } else {
+                                localPhotoUri = null
+                                photoMessage = update.exception?.localizedMessage
+                                    ?: "ছবি আপলোড হয়েছে, কিন্তু প্রোফাইলে সংরক্ষণ হয়নি।"
+                            }
+                        }
+                    }
+                    .addOnFailureListener { error ->
+                        uploadingPhoto = false
+                        localPhotoUri = null
+                        photoMessage = error.localizedMessage ?: "ছবি আপলোড করা যায়নি। আবার চেষ্টা করুন।"
+                    }
+            }
+        }
+    }
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showWallet by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
@@ -764,8 +818,43 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(Modifier.size(86.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
-                    Text(profileName.take(1).uppercase(), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                Box(Modifier.size(104.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
+                    val imageModel: Any? = localPhotoUri ?: profilePhotoUrl
+                    if (imageModel != null) {
+                        AsyncImage(
+                            model = imageModel,
+                            contentDescription = "Profile photo",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(profileName.take(1).uppercase(), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                Button(
+                    onClick = { photoPicker.launch("image/*") },
+                    enabled = !uploadingPhoto,
+                    colors = ButtonDefaults.buttonColors(containerColor = Violet)
+                ) {
+                    if (uploadingPhoto) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    } else {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (uploadingPhoto) "আপলোড হচ্ছে..." else "ছবি বদলান")
+                }
+                if (photoMessage.isNotBlank()) {
+                    Text(
+                        photoMessage,
+                        color = if (photoMessage.contains("সফলভাবে")) Aqua else Muted,
+                        fontSize = 10.sp
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(profileName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
