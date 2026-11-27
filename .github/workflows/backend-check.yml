@@ -1,0 +1,34 @@
+name: VoxMeet Backend TypeScript Check
+
+on:
+  push:
+    branches: [ main, work/bigo-live-ui ]
+    paths:
+      - "functions/**"
+      - "firebase.json"
+      - "firestore.rules"
+      - ".github/workflows/backend-check.yml"
+  pull_request:
+    paths:
+      - "functions/**"
+      - "firebase.json"
+      - "firestore.rules"
+      - ".github/workflows/backend-check.yml"
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: functions/package.json
+      - name: Install backend dependencies
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+      - name: TypeScript build
+        working-directory: functions
+        run: npm run build

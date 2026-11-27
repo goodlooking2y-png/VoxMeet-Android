@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Wallets, balances, gift events and room state are server-authoritative.
+    // Firebase Admin SDK in Cloud Functions bypasses these client rules.
+    // No Android client can directly create or modify financial records.
+    match /wallets/{userId} {
+      allow read, write: if false;
+      match /transactions/{transactionId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /giftEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /voiceRooms/{roomName} {
+      allow read, write: if false;
+    }
+
+    // Deny all other client access until a collection has explicit rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

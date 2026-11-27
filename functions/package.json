@@ -1,0 +1,20 @@
+{
+  "name": "voxmeet-backend",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf lib"
+  },
+  "dependencies": {
+    "firebase-admin": "13.6.0",
+    "firebase-functions": "6.4.0",
+    "livekit-server-sdk": "2.20.1"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}
