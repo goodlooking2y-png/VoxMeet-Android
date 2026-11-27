@@ -80,6 +80,9 @@ jobs:
           print("Configured JitPack in", settings)
           PY
 
+      - name: Apply VoxMeet launcher branding
+        run: python3 scripts/apply_voxmeet_branding.py
+
       - name: Upload extracted source for review
         uses: actions/upload-artifact@v4
         with:
