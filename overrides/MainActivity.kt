@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import coil.compose.AsyncImage
 
 private val Ink = Color(0xFF100D20)
@@ -737,6 +738,21 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
     var localPhotoUri by remember(accountUser?.uid) { mutableStateOf<Uri?>(null) }
     var uploadingPhoto by remember { mutableStateOf(false) }
     var photoMessage by remember { mutableStateOf("") }
+    var photoLoadFailed by remember(accountUser?.uid) { mutableStateOf(false) }
+
+    // Refresh Firebase Auth's cached profile so a saved photo is restored after app restarts.
+    LaunchedEffect(accountUser?.uid) {
+        val user = auth.currentUser
+        if (user != null) {
+            user.reload().addOnSuccessListener {
+                profilePhotoUrl = auth.currentUser?.photoUrl?.toString()
+                photoLoadFailed = false
+            }.addOnFailureListener {
+                // Retain the cached URL during temporary network failures.
+            }
+        }
+    }
+
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedUri ->
         if (selectedUri != null) {
             val currentUser = auth.currentUser
@@ -746,9 +762,17 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                 localPhotoUri = selectedUri
                 uploadingPhoto = true
                 photoMessage = "প্রোফাইল ছবি আপলোড হচ্ছে..."
+                // Unique paths prevent stale image caches after a user replaces a photo.
+                val mimeType = context.contentResolver.getType(selectedUri) ?: "image/jpeg"
+                val extension = when (mimeType.lowercase()) {
+                    "image/png" -> "png"
+                    "image/webp" -> "webp"
+                    else -> "jpg"
+                }
                 val photoRef = FirebaseStorage.getInstance().reference
-                    .child("profilePhotos/${currentUser.uid}/profile.jpg")
-                photoRef.putFile(selectedUri)
+                    .child("profilePhotos/${currentUser.uid}/${UUID.randomUUID()}.$extension")
+                val metadata = StorageMetadata.Builder().setContentType(mimeType).build()
+                photoRef.putFile(selectedUri, metadata)
                     .continueWithTask { task ->
                         if (!task.isSuccessful) {
                             throw task.exception ?: IllegalStateException("ছবি আপলোড করা যায়নি।")
@@ -763,6 +787,7 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
                             uploadingPhoto = false
                             if (update.isSuccessful) {
                                 profilePhotoUrl = downloadUri.toString()
+                                photoLoadFailed = false
                                 localPhotoUri = null
                                 photoMessage = "প্রোফাইল ছবি সফলভাবে সংরক্ষিত হয়েছে।"
                             } else {
@@ -820,15 +845,21 @@ fun ProfileScreen(modifier: Modifier = Modifier) {
             ) {
                 Box(Modifier.size(104.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Pink, Violet))), contentAlignment = Alignment.Center) {
                     val imageModel: Any? = localPhotoUri ?: profilePhotoUrl
-                    if (imageModel != null) {
+                    if (imageModel != null && !photoLoadFailed) {
                         AsyncImage(
                             model = imageModel,
                             contentDescription = "Profile photo",
                             modifier = Modifier.fillMaxSize().clip(CircleShape),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            onError = { photoLoadFailed = true }
                         )
                     } else {
-                        Text(profileName.take(1).uppercase(), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            profileName.trim().take(1).ifBlank { "V" }.uppercase(),
+                            color = Color.White,
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
                 }
                 Button(
