@@ -32,14 +32,14 @@ jobs:
           source = Path("VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt")
           text = source.read_text()
           marker = '''        item {
-                      Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {'''
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {'''
           if "item { LevelProgressCard() }" not in text:
               if marker not in text:
                   raise SystemExit("HomeScreen insertion point not found; refusing to alter source")
               text = text.replace(marker, '''        item { LevelProgressCard() }
-                  item { EntryTierPreview() }
-                  item {
-                      Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {''', 1)
+        item { EntryTierPreview() }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {''', 1)
           source.write_text(text)
           print("Home Screen level and tier entry previews added")
           PY
