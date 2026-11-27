@@ -2,8 +2,10 @@ name: Build VoxMeet APK
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [ main ]
+  push:
+    branches: [ main, feature/home-level-entry-ui ]
 
 jobs:
   build:
@@ -23,6 +25,27 @@ jobs:
       - name: Extract source
         run: unzip -q VoxMeet-profile-avatar-update.zip
 
+      - name: Add Home Screen level and entry components
+        run: |
+          mkdir -p VoxMeet/app/src/main/java/com/rakib/voxmeet
+          cp home-ui/LevelAndEntryComponents.kt VoxMeet/app/src/main/java/com/rakib/voxmeet/LevelAndEntryComponents.kt
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("VoxMeet/app/src/main/java/com/rakib/voxmeet/MainActivity.kt")
+          text = source.read_text()
+          marker = '''        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {'''
+          if "item { LevelProgressCard() }" not in text:
+              if marker not in text:
+                  raise SystemExit("HomeScreen insertion point not found; refusing to alter source")
+              text = text.replace(marker, '''        item { LevelProgressCard() }
+        item { EntryTierPreview() }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {''', 1)
+          source.write_text(text)
+          print("Home Screen level and tier entry previews added")
+          PY
+
       - name: Apply VoxMeet launcher icon
         run: |
           mkdir -p VoxMeet/app/src/main/res
@@ -33,9 +56,10 @@ jobs:
           if not manifest.is_file():
               raise SystemExit("AndroidManifest.xml not found")
           text = manifest.read_text()
-          text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher"')
           if 'android:icon=' not in text:
-              raise SystemExit("Could not find application android:icon attribute")
+              text = text.replace('<application ', '<application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" ', 1)
+          if 'android:icon=' not in text:
+              raise SystemExit("Could not add application icon attribute")
           text = text.replace('android:roundIcon="@mipmap/ic_launcher_round"', 'android:roundIcon="@mipmap/ic_launcher"')
           manifest.write_text(text)
           print("VoxMeet launcher icon resources applied")
